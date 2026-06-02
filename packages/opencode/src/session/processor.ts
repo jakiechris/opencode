@@ -354,10 +354,20 @@ export const layer = Layer.effect(
             yield* ensureToolCall(value)
             return
 
-          case "tool-input-delta":
-            // AI SDK emits a final `tool-call` with the parsed `input`; accumulating
-            // delta fragments into `state.raw` is redundant work for no current consumer.
+          case "tool-input-delta": {
+            // Accumulate raw input fragments in memory for the event. The tool part
+            // state (ToolStateRunning) does not have a `raw` field, so this is not
+            // persisted to the session store — only emitted as a transient event.
+            if (flags.experimentalEventSystem) {
+              yield* events.publish(SessionEvent.Tool.Input.Delta, {
+                sessionID: ctx.sessionID,
+                callID: value.id,
+                delta: value.text,
+                timestamp: DateTime.makeUnsafe(Date.now()),
+              })
+            }
             return
+          }
 
           case "tool-input-end": {
             const toolCall = yield* ensureToolCall(value)
