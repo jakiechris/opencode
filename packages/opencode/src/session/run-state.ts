@@ -1,6 +1,9 @@
 import { InstanceState } from "@/effect/instance-state"
 import { Runner } from "@/effect/runner"
 import { BackgroundJob } from "@/background/job"
+import { InstanceStore } from "@/project/instance-store"
+import { Flag } from "@opencode-ai/core/flag/flag"
+import * as Log from "@opencode-ai/core/util/log"
 import { Effect, Latch, Layer, Scope, Context } from "effect"
 import * as Session from "./session"
 import { MessageV2 } from "./message-v2"
@@ -22,6 +25,8 @@ export interface Interface {
     ready?: Latch.Latch,
   ) => Effect.Effect<MessageV2.WithParts, Session.BusyError>
 }
+
+const log = Log.create({ service: "session.run-state" })
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/SessionRunState") {}
 
@@ -59,6 +64,17 @@ export const layer = Layer.effect(
         onIdle: Effect.gen(function* () {
           data.runners.delete(sessionID)
           yield* status.set(sessionID, { type: "idle" })
+          if (Flag.OPENCODE_AUTO_DISPOSE) {
+            const ctx = yield* InstanceState.context
+            const store = yield* InstanceStore.Service
+            log.info("auto-dispose", { directory: ctx.directory, worktree: ctx.worktree, projectID: ctx.project.id })
+            yield* store.dispose(ctx).pipe(
+              Effect.catchCause((cause) => {
+                log.warn("auto-dispose failed", { cause })
+                return Effect.void
+              }),
+            )
+          }
         }),
         onBusy: status.set(sessionID, { type: "busy" }),
         onInterrupt,

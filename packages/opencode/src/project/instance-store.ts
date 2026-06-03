@@ -4,6 +4,7 @@ import { WorkspaceContext } from "@/control-plane/workspace-context"
 import { InstanceRef } from "@/effect/instance-ref"
 import { disposeInstance as runDisposers } from "@/effect/instance-registry"
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
+import * as Log from "@opencode-ai/core/util/log"
 import { Context, Deferred, Duration, Effect, Exit, Layer, Scope } from "effect"
 import { type InstanceContext } from "./instance-context"
 import { InstanceBootstrap } from "./bootstrap-service"
@@ -37,6 +38,8 @@ export const layer: Layer.Layer<Service, never, Project.Service | InstanceBootst
     const project = yield* Project.Service
     const bootstrap = yield* InstanceBootstrap.Service
     const scope = yield* Scope.Scope
+    const log = Log.create({ service: "instance-store" })
+
     const cache = new Map<string, Entry>()
 
     const boot = (input: LoadInput & { directory: string }) =>
@@ -143,11 +146,24 @@ export const layer: Layer.Layer<Service, never, Project.Service | InstanceBootst
 
     const dispose = Effect.fn("InstanceStore.dispose")(function* (ctx: InstanceContext) {
       const entry = cache.get(ctx.directory)
-      if (!entry) return yield* disposeContext(ctx)
+      if (!entry) {
+        log.info("dispose: no cache entry, calling disposeContext directly", { directory: ctx.directory })
+        return yield* disposeContext(ctx)
+      }
 
       const exit = yield* Deferred.await(entry.deferred).pipe(Effect.exit)
-      if (Exit.isFailure(exit)) return yield* removeEntry(ctx.directory, entry).pipe(Effect.asVoid)
-      if (exit.value !== ctx) return
+      if (Exit.isFailure(exit)) {
+        log.info("dispose: deferred failed, removing entry", { directory: ctx.directory })
+        return yield* removeEntry(ctx.directory, entry).pipe(Effect.asVoid)
+      }
+      if (exit.value !== ctx) {
+        log.info("dispose: reference mismatch, skipping", {
+          directory: ctx.directory,
+          cachedDir: exit.value.directory,
+        })
+        return
+      }
+      log.info("dispose: proceeding with disposeEntry", { directory: ctx.directory })
       yield* disposeEntry(ctx.directory, entry, ctx).pipe(Effect.asVoid)
     })
 
