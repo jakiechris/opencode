@@ -489,24 +489,6 @@ export const layer = Layer.effect(
       return yield* cachedGlobal
     })
 
-    const ensureGitignore = Effect.fn("Config.ensureGitignore")(function* (dir: string) {
-      const gitignore = path.join(dir, ".gitignore")
-      const hasIgnore = yield* fs.existsSafe(gitignore)
-      if (!hasIgnore) {
-        yield* fs
-          .writeFileString(
-            gitignore,
-            ["node_modules", "package.json", "package-lock.json", "bun.lock", ".gitignore"].join("\n"),
-          )
-          .pipe(
-            Effect.catchIf(
-              (e) => e.reason._tag === "PermissionDenied",
-              () => Effect.void,
-            ),
-          )
-      }
-    })
-
     const loadInstanceState = Effect.fn("Config.loadInstanceState")(
       function* (ctx: InstanceContext) {
         const auth = yield* authSvc.all().pipe(Effect.orDie)
@@ -628,8 +610,6 @@ export const layer = Layer.effect(
               result.plugin ??= []
             }
           }
-
-          yield* ensureGitignore(dir).pipe(Effect.orDie)
 
           const dep = yield* npmSvc
             .install(dir, {

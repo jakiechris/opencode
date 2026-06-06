@@ -8,7 +8,6 @@ import { Effect, Layer, Context, Schema, Scope } from "effect"
 import * as Stream from "effect/Stream"
 import { formatPatch, structuredPatch } from "diff"
 import fuzzysort from "fuzzysort"
-import ignore from "ignore"
 import path from "path"
 import { Global } from "@opencode-ai/core/global"
 import { containsPath } from "../project/instance-context"
@@ -570,17 +569,6 @@ export const layer = Layer.effect(
     const list = Effect.fn("File.list")(function* (dir?: string) {
       const ctx = yield* InstanceState.context
       const exclude = [".git", ".DS_Store"]
-      let ignored = (_: string) => false
-      if (ctx.project.vcs === "git") {
-        const ig = ignore()
-        const gitignore = path.join(ctx.worktree, ".gitignore")
-        const gitignoreText = yield* appFs.readFileString(gitignore).pipe(Effect.catch(() => Effect.succeed("")))
-        if (gitignoreText) ig.add(gitignoreText)
-        const ignoreFile = path.join(ctx.worktree, ".ignore")
-        const ignoreText = yield* appFs.readFileString(ignoreFile).pipe(Effect.catch(() => Effect.succeed("")))
-        if (ignoreText) ig.add(ignoreText)
-        ignored = ig.ignores.bind(ig)
-      }
 
       const resolved = dir ? path.join(ctx.directory, dir) : ctx.directory
       if (!containsPath(resolved, ctx)) {
@@ -595,13 +583,7 @@ export const layer = Layer.effect(
         const absolute = path.join(resolved, entry.name)
         const file = path.relative(ctx.directory, absolute)
         const type = entry.type === "directory" ? "directory" : "file"
-        nodes.push({
-          name: entry.name,
-          path: file,
-          absolute,
-          type,
-          ignored: ignored(type === "directory" ? file + "/" : file),
-        })
+        nodes.push({ name: entry.name, path: file, absolute, type, ignored: false })
       }
       return nodes.sort((a, b) => {
         if (a.type !== b.type) return a.type === "directory" ? -1 : 1
