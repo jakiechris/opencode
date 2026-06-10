@@ -1372,7 +1372,7 @@ describe("session.compaction.process", () => {
         expect(captured).toContain("older context")
         expect(captured).not.toContain("keep this turn")
         expect(captured).not.toContain("and this one too")
-        expect(captured).not.toContain("What did we do so far?")
+        expect(captured).not.toContain("我们刚才做了什么？")
       }).pipe(withCompaction({ llm: stub.layer }))
     },
     { git: true },
