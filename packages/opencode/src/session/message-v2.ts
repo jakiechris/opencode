@@ -726,7 +726,7 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
         if (part.type === "compaction") {
           userMessage.parts.push({
             type: "text",
-            text: "我们刚才做了什么？",
+            text: "继续执行未完成的任务.",
           })
         }
         if (part.type === "subtask") {
