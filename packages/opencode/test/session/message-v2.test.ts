@@ -312,7 +312,7 @@ describe("session.message-v2.toModelMessage", () => {
             filename: "img.png",
             data: "https://example.com/img.png",
           },
-          { type: "text", text: "What did we do so far?" },
+          { type: "text", text: "我们刚才做了什么？" },
           { type: "text", text: "The following tool was executed by the user" },
         ],
       },
