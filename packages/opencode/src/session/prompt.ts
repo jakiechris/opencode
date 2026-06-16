@@ -613,6 +613,11 @@ export const layer = Layer.effect(
     })
 
     const currentModel = Effect.fnUntraced(function* (sessionID: SessionID) {
+      // Priority 0: config.model — always prefer the configured model
+      const cfg = yield* config.get()
+      if (cfg.model) return Provider.parseModel(cfg.model)
+
+      // Priority 1: DB session model
       const current = yield* db
         .select({ model: SessionTable.model })
         .from(SessionTable)
@@ -626,6 +631,7 @@ export const layer = Layer.effect(
           ...(current.model.variant && current.model.variant !== "default" ? { variant: current.model.variant } : {}),
         }
       }
+      // Priority 2: user message model
       const match = yield* sessions
         .findMessage(sessionID, (m) => m.info.role === "user" && !!m.info.model)
         .pipe(Effect.orDie)

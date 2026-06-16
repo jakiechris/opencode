@@ -146,8 +146,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
     const configuredModel = () => {
       if (!sync.data.config.model) return
       const [providerID, modelID] = sync.data.config.model.split("/")
-      const model = { providerID, modelID }
-      if (validModel(model)) return model
+      return { providerID, modelID }
     }
 
     const recentModel = () => {
@@ -225,6 +224,18 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
     }
 
     const current = () => {
+      // Priority 0: configured model from config endpoint — always prefer it
+      // even if the provider isn't in the global catalog
+      const cfg = configuredModel()
+      if (cfg) {
+        const found = models.find(cfg)
+        if (found) return found
+        // Not in catalog (e.g., instance-specific provider): return minimal reference
+        return { id: cfg.modelID, name: cfg.modelID, provider: { id: cfg.providerID, name: cfg.providerID } } as NonNullable<
+          ReturnType<typeof models.find>
+        >
+      }
+
       const item = firstModel(
         () => scope()?.model,
         () => agent.current()?.model,
