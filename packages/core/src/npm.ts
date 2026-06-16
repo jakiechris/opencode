@@ -2,6 +2,7 @@ export * as Npm from "./npm"
 
 import path from "path"
 import npa from "npm-package-arg"
+import fs from "fs/promises"
 import { Effect, Schema, Context, Layer, Option, FileSystem } from "effect"
 import { NodeFileSystem } from "@effect/platform-node"
 import { FSUtil } from "./fs-util"
@@ -17,6 +18,33 @@ export class InstallFailedError extends Schema.TaggedErrorClass<InstallFailedErr
   dir: Schema.String,
   cause: Schema.optional(Schema.Defect()),
 }) {}
+
+// System module path checked before falling back to npm install.
+// Set to empty string to disable (e.g. in tests).
+let systemModulePath = "/usr/lib/node_modules"
+
+/** Override the system module path (used in tests). */
+export function setSystemModulePath(p: string) {
+  systemModulePath = p
+}
+
+/** Check if a package is already available in the system module path. */
+async function packagesExistInSystemPath(pkgs: string[]): Promise<boolean> {
+  if (!systemModulePath || !pkgs.length) return false
+  const results = await Promise.all(
+    pkgs.map(async (pkg) => {
+      const name = (() => {
+        try { return npa(pkg).name ?? pkg } catch { return pkg }
+      })()
+      if (!name) return false
+      try {
+        await fs.stat(path.join(systemModulePath, name, "package.json"))
+        return true
+      } catch { return false }
+    }),
+  )
+  return results.every(Boolean)
+}
 
 export interface EntryPoint {
   readonly directory: string
@@ -145,6 +173,18 @@ export const layer = Layer.effect(
       if (!canWrite) return
 
       const add = input?.add.map((pkg) => [pkg.name, pkg.version].filter(Boolean).join("@")) ?? []
+
+      // If all requested packages are available in the system module path,
+      // skip npm install entirely to avoid unnecessary downloads and avoid
+      // writing to read-only directories.
+      if (add.length && (yield* Effect.promise(() => packagesExistInSystemPath(add)))) {
+        yield* Effect.logInfo("skipping npm install; all packages found in system module path", {
+          systemModulePath,
+          add,
+        })
+        return
+      }
+
       if (
         yield* Effect.gen(function* () {
           const nodeModulesExists = yield* afs.existsSafe(path.join(dir, "node_modules"))
