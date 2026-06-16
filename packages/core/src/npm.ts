@@ -89,6 +89,7 @@ export const layer = Layer.effect(
           progress: false,
           savePrefix: "",
           ignoreScripts: true,
+          saveGitignore: false,
         })
         return yield* Effect.tryPromise({
           try: () =>
@@ -97,6 +98,7 @@ export const layer = Layer.effect(
               add,
               save: true,
               saveType: "prod",
+              saveGitignore: false,
             }),
           catch: (cause) =>
             new InstallFailedError({
