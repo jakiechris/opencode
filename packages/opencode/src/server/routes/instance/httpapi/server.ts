@@ -1,6 +1,6 @@
 import { Config as EffectConfig, Context, Effect, Layer } from "effect"
-import { HttpApiBuilder, OpenApi } from "effect/unstable/httpapi"
-import { HttpClient, HttpMiddleware, HttpRouter, HttpServer, HttpServerResponse } from "effect/unstable/http"
+import { HttpApiBuilder } from "effect/unstable/httpapi"
+import { HttpClient, HttpMiddleware, HttpRouter, HttpServer } from "effect/unstable/http"
 import * as Socket from "effect/unstable/socket/Socket"
 import { FSUtil } from "@opencode-ai/core/fs-util"
 import * as Observability from "@opencode-ai/core/observability"
@@ -15,7 +15,6 @@ import { Env } from "@/env"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { Format } from "@/format"
 import { Git } from "@/git"
-import { Installation } from "@/installation"
 import { LSP } from "@/lsp/lsp"
 import { MCP } from "@/mcp"
 import { McpAuth } from "@/mcp/auth"
@@ -66,7 +65,6 @@ import { serveUIEffect } from "@/server/shared/ui"
 import { ServerAuth } from "@/server/auth"
 import { InstanceHttpApi, RootHttpApi } from "./api"
 import { Api } from "@opencode-ai/server/api"
-import { PublicApi } from "./public"
 import {
   authorizationLayer,
   authorizationRouterMiddleware,
@@ -169,17 +167,6 @@ const serverRoutes = HttpApiBuilder.layer(Api).pipe(
   Layer.provide([serverHttpApiAuthLayer, v2SchemaErrorLayer]),
 )
 
-// `OpenApi.fromApi` is non-trivial; defer until /doc is actually hit so
-// processes that never serve it (CLI, scripts) don't pay at module load.
-// `HttpServerResponse.jsonUnsafe` runs JSON.stringify eagerly, so caching
-// the response also caches the serialized body — every /doc request reuses
-// the same Uint8Array instead of re-stringifying the spec.
-const docResponse = lazy(() => HttpServerResponse.jsonUnsafe(OpenApi.fromApi(PublicApi)))
-
-const docRoute = HttpRouter.use((router) => router.add("GET", "/doc", () => Effect.succeed(docResponse()))).pipe(
-  Layer.provide(authOnlyRouterLayer),
-)
-
 const uiRoute = HttpRouter.use((router) =>
   Effect.gen(function* () {
     const fs = yield* FSUtil.Service
@@ -245,7 +232,6 @@ const app = LayerNode.group([
   Vcs.node,
   Workspace.node,
   Worktree.node,
-  Installation.node,
   ShareNext.node,
   SessionShare.node,
   InstanceStore.node,
@@ -265,7 +251,6 @@ export function createRoutes(
     ptyConnectApiRoutes,
     instanceRoutes,
     serverRoutes,
-    docRoute,
     uiRoute,
   ).pipe(
     Layer.provide([
