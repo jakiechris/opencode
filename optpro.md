@@ -116,6 +116,51 @@ export const ServeCommand = {
 
 `Effect.promise(() => import(...))` 在 Effect generator 内也能懒加载 — 只有在 `yield*` 执行到那一行时才会触发 import。
 
+### 3. import 迁移明细表
+
+#### `index.ts` — 23 个命令模块（全部从顶层移入 lazyCmd）
+
+所有命令模块原本在文件顶层 `import { XxxCommand } from "./cli/cmd/xxx"`，现在全部改为 `lazyCmd()` 内的 `() => import("./cli/cmd/xxx")` 字面量。yargs 匹配到对应命令时才触发实际加载。
+
+| # | 命令字面量 | 模块路径 | 导出名 | 原来触发（总是加载） | 现在触发（按需加载） |
+|---|-----------|---------|--------|------------------|-------------------|
+| 1 | `"acp"` | `./cli/cmd/acp` | `AcpCommand` | `execve` 时，静态 import hoisted | 用户输入 `opencode acp` |
+| 2 | `"mcp"` | `./cli/cmd/mcp` | `McpCommand` | `execve` 时 | 用户输入 `opencode mcp` |
+| 3 | `"$0 [project]"` | `./cli/cmd/tui` | `TuiThreadCommand` | `execve` 时 | 用户输入 `opencode`（默认 TUI） |
+| 4 | `"attach <url>"` | `./cli/cmd/attach` | `AttachCommand` | `execve` 时 | 用户输入 `opencode attach` |
+| 5 | `"run [message..]"` | `./cli/cmd/run` | `RunCommand` | `execve` 时 | 用户输入 `opencode run` |
+| 6 | `"generate"` | `./cli/cmd/generate` | `GenerateCommand` | `execve` 时 | 用户输入 `opencode generate` |
+| 7 | `"debug"` | `./cli/cmd/debug` | `DebugCommand` | `execve` 时 | 用户输入 `opencode debug` |
+| 8 | `"console"` | `./cli/cmd/account` | `ConsoleCommand` | `execve` 时 | 用户输入 `opencode console` |
+| 9 | `["providers", "auth"]` | `./cli/cmd/providers` | `ProvidersCommand` | `execve` 时 | 用户输入 `opencode providers` |
+| 10 | `"agent"` | `./cli/cmd/agent` | `AgentCommand` | `execve` 时 | 用户输入 `opencode agent` |
+| 11 | `"upgrade [target]"` | `./cli/cmd/upgrade` | `UpgradeCommand` | `execve` 时 | 用户输入 `opencode upgrade` |
+| 12 | `"uninstall"` | `./cli/cmd/uninstall` | `UninstallCommand` | `execve` 时 | 用户输入 `opencode uninstall` |
+| 13 | `"serve"` | `./cli/cmd/serve` | `ServeCommand` | `execve` 时 | 用户输入 `opencode serve` |
+| 14 | `"web"` | `./cli/cmd/web` | `WebCommand` | `execve` 时 | 用户输入 `opencode web` |
+| 15 | `"models [provider]"` | `./cli/cmd/models` | `ModelsCommand` | `execve` 时 | 用户输入 `opencode models` |
+| 16 | `"stats"` | `./cli/cmd/stats` | `StatsCommand` | `execve` 时 | 用户输入 `opencode stats` |
+| 17 | `"export [sessionID]"` | `./cli/cmd/export` | `ExportCommand` | `execve` 时 | 用户输入 `opencode export` |
+| 18 | `"import <file>"` | `./cli/cmd/import` | `ImportCommand` | `execve` 时 | 用户输入 `opencode import` |
+| 19 | `"github"` | `./cli/cmd/github` | `GithubCommand` | `execve` 时 | 用户输入 `opencode github` |
+| 20 | `"pr <number>"` | `./cli/cmd/pr` | `PrCommand` | `execve` 时 | 用户输入 `opencode pr` |
+| 21 | `"session"` | `./cli/cmd/session` | `SessionCommand` | `execve` 时 | 用户输入 `opencode session` |
+| 22 | `["plugin <module>", "plug"]` | `./cli/cmd/plug` | `PluginCommand` | `execve` 时 | 用户输入 `opencode plugin` |
+| 23 | `"db"` | `./cli/cmd/db` | `DbCommand` | `execve` 时 | 用户输入 `opencode db` |
+
+#### `serve.ts` — 5 个运行时依赖（全部从模块顶层移入 handler/builder）
+
+| # | import 项 | 原来源模块 | 原来位置 | 现在位置 | 触发时机 |
+|---|----------|-----------|---------|---------|---------|
+| 1 | `Effect` | `"effect"` | 文件顶层静态 import | `handler` 内 `await import("effect")` | `opencode serve` 执行时 |
+| 2 | `Flag` | `"@opencode-ai/core/flag/flag"` | 文件顶层静态 import | `handler` 内 `await import(...)` | `opencode serve` 执行时 |
+| 3 | `AppRuntime` | `"@/effect/app-runtime"` | (原通过 `effectCmd` 间接加载) | `handler` 内 `await import("@/effect/app-runtime")` | `opencode serve` 执行时 |
+| 4 | `withNetworkOptions` | `"../network"` | 文件顶层静态 import | `builder` 内 `await import("../network")` | yargs 构建 serve 命令参数时 |
+| 5 | `resolveNetworkOptions` | `"../network"` | 文件顶层静态 import | `handler` 内 `await import("../network")` | `opencode serve` 执行时 |
+| 6 | `Server` | `"../../server/server"` | (原通过 `effectCmd` → Effect 层间接加载) | `handler` 内 `yield* Effect.promise(() => import("../../server/server"))` | Effect generator 执行到 `yield*` 时 |
+
+**关键**：`serve.ts` 的 `import type { Argv }` 和 `import type { NetworkOptions }` 是 TypeScript 类型导入，编译后被完全擦除，不产生任何运行时模块加载。`Flag` 和 `network` 模块在 `index.ts` 顶层不存在，所以 `opencode serve` 冷启动时完全不会加载。
+
 ## 为什么对 serve API / 网页 / TUI 毫无影响
 
 优化后实测验证：`opencode serve` 的 API 调用、Web 界面、TUI 客户端连接全部正常工作。原因很简单 — **我们只推迟了加载时机，没有删除任何东西**。
