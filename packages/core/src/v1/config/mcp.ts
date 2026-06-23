@@ -41,6 +41,12 @@ export const OAuth = Schema.Struct({
 }).annotate({ identifier: "McpOAuthConfig" })
 export type OAuth = Schema.Schema.Type<typeof OAuth>
 
+export const RemoteTransport = Schema.optional(
+  Schema.Literal("streamable-http", "sse", "auto").annotate({
+    description: "Transport protocol to use. 'streamable-http' only tries StreamableHTTP. 'sse' only tries SSE. 'auto' tries StreamableHTTP first then SSE. Defaults to 'streamable-http'.",
+  }),
+)
+
 export const Remote = Schema.Struct({
   type: Schema.Literal("remote").annotate({ description: "Type of MCP server connection" }),
   url: Schema.String.annotate({ description: "URL of the remote MCP server" }),
@@ -56,6 +62,7 @@ export const Remote = Schema.Struct({
   timeout: Schema.optional(PositiveInt).annotate({
     description: "Timeout in ms for MCP server requests. Defaults to 5000 (5 seconds) if not specified.",
   }),
+  transport: RemoteTransport,
 }).annotate({ identifier: "McpRemoteConfig" })
 export type Remote = Schema.Schema.Type<typeof Remote>
 

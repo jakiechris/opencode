@@ -192,19 +192,50 @@ export const layer = Layer.effect(
      * Connect a client via the given transport with resource safety:
      * on failure the transport is closed; on success the caller owns it.
      */
-    const connectTransport = (transport: Transport, timeout: number) =>
-      Effect.acquireUseRelease(
-        Effect.succeed(transport),
-        (t) =>
-          Effect.tryPromise({
-            try: () => {
-              const client = new Client({ name: "opencode", version: InstallationVersion }, CLIENT_OPTIONS)
-              return withTimeout(client.connect(t), timeout).then(() => client)
-            },
-            catch: (e) => (e instanceof Error ? e : new Error(String(e))),
-          }),
-        (t, exit) => (Exit.isFailure(exit) ? Effect.tryPromise(() => t.close()).pipe(Effect.ignore) : Effect.void),
-      )
+    const transportHttpMethod = (t: Transport) =>
+      t instanceof StreamableHTTPClientTransport ? "POST (initialize)" : t instanceof SSEClientTransport ? "GET (SSE) + POST" : "stdio"
+
+    const transportCurl = (t: Transport, url: URL) => {
+      if (t instanceof StreamableHTTPClientTransport) {
+        return `curl -sS -m 30 -X POST '${url.href}' -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -d '{"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"opencode","version":"..."}},"jsonrpc":"2.0","id":0}'`
+      }
+      if (t instanceof SSEClientTransport) {
+        return `curl -sS -m 30 -N '${url.href}' -H 'Accept: text/event-stream'`
+      }
+      return ""
+    }
+
+    const connectTransport = (transport: Transport, timeout: number, label?: string, url?: URL) =>
+      Effect.gen(function* () {
+        const startedAt = Date.now()
+        const method = transportHttpMethod(transport)
+        const curl = url ? transportCurl(transport, url) : ""
+        yield* Effect.logInfo("MCP transport connecting", { label, method, timeout, curl }).pipe(Effect.ignore)
+        return yield* Effect.acquireUseRelease(
+          Effect.succeed(transport),
+          (t) =>
+            Effect.tryPromise({
+              try: () => {
+                const client = new Client({ name: "opencode", version: InstallationVersion }, CLIENT_OPTIONS)
+                return withTimeout(client.connect(t), timeout).then(() => client)
+              },
+              catch: (e) => (e instanceof Error ? e : new Error(String(e))),
+            }),
+          (t, exit) => (Exit.isFailure(exit) ? Effect.tryPromise(() => t.close()).pipe(Effect.ignore) : Effect.void),
+        ).pipe(
+          Effect.tap(() =>
+            Effect.logInfo("MCP transport connected", { label, method, elapsed: Date.now() - startedAt }),
+          ),
+          Effect.tapErrorCause((cause) =>
+            Effect.logInfo("MCP transport connection failed", {
+              label,
+              method,
+              elapsed: Date.now() - startedAt,
+              error: Cause.squash(cause).message,
+            }),
+          ),
+        )
+      })
 
     const DISABLED_RESULT: CreateResult = { status: { status: "disabled" } }
 
@@ -241,67 +272,86 @@ export const layer = Layer.effect(
         )
       }
 
-      const transports: Array<{ name: string; transport: TransportWithAuth }> = [
-        {
+      const transports: Array<{ name: string; transport: TransportWithAuth }> = []
+      const transportMode = mcp.transport ?? "streamable-http"
+
+      if (transportMode === "auto" || transportMode === "streamable-http") {
+        transports.push({
           name: "StreamableHTTP",
           transport: new StreamableHTTPClientTransport(url, {
             authProvider,
             requestInit: mcp.headers ? { headers: mcp.headers } : undefined,
           }),
-        },
-        {
+        })
+      }
+      if (transportMode === "auto" || transportMode === "sse") {
+        transports.push({
           name: "SSE",
           transport: new SSEClientTransport(url, {
             authProvider,
             requestInit: mcp.headers ? { headers: mcp.headers } : undefined,
           }),
-        },
-      ]
+        })
+      }
 
       const connectTimeout = mcp.timeout ?? DEFAULT_TIMEOUT
       let lastStatus: Status | undefined
 
+      yield* Effect.logInfo("connecting to MCP server", {
+        key,
+        url: url.href,
+        hostname: url.hostname,
+        port: url.port || (url.protocol === "https:" ? "443" : "80"),
+        timeout: connectTimeout,
+        transport: transportMode,
+      })
+
       for (const { name, transport } of transports) {
-        const result = yield* connectTransport(transport, connectTimeout).pipe(
+        const result = yield* connectTransport(transport, connectTimeout, `${key}:${name}`, url).pipe(
           Effect.map((client) => ({ client, transportName: name })),
-          Effect.catch((error) => {
-            const lastError = error instanceof Error ? error : new Error(String(error))
-            const isAuthError =
-              error instanceof UnauthorizedError || (authProvider && lastError.message.includes("OAuth"))
+          Effect.catch((error) =>
+            Effect.gen(function* () {
+              const lastError = error instanceof Error ? error : new Error(String(error))
+              const isAuthError =
+                error instanceof UnauthorizedError || (authProvider && lastError.message.includes("OAuth"))
 
-            if (isAuthError) {
-              if (lastError.message.includes("registration") || lastError.message.includes("client_id")) {
-                lastStatus = {
-                  status: "needs_client_registration" as const,
-                  error: "Server does not support dynamic client registration. Please provide clientId in config.",
+              if (isAuthError) {
+                if (lastError.message.includes("registration") || lastError.message.includes("client_id")) {
+                  lastStatus = {
+                    status: "needs_client_registration" as const,
+                    error: "Server does not support dynamic client registration. Please provide clientId in config.",
+                  }
+                  yield* events
+                    .publish(TuiEvent.ToastShow, {
+                      title: "MCP Authentication Required",
+                      message: `Server "${key}" requires a pre-registered client ID. Add clientId to your config.`,
+                      variant: "warning",
+                      duration: 8000,
+                    })
+                    .pipe(Effect.ignore)
+                } else {
+                  pendingOAuthTransports.set(key, transport)
+                  lastStatus = { status: "needs_auth" as const }
+                  yield* events
+                    .publish(TuiEvent.ToastShow, {
+                      title: "MCP Authentication Required",
+                      message: `Server "${key}" requires authentication. Run: opencode mcp auth ${key}`,
+                      variant: "warning",
+                      duration: 8000,
+                    })
+                    .pipe(Effect.ignore)
                 }
-                return events
-                  .publish(TuiEvent.ToastShow, {
-                    title: "MCP Authentication Required",
-                    message: `Server "${key}" requires a pre-registered client ID. Add clientId to your config.`,
-                    variant: "warning",
-                    duration: 8000,
-                  })
-                  .pipe(Effect.ignore, Effect.as(undefined))
-              } else {
-                pendingOAuthTransports.set(key, transport)
-                lastStatus = { status: "needs_auth" as const }
-                return events
-                  .publish(TuiEvent.ToastShow, {
-                    title: "MCP Authentication Required",
-                    message: `Server "${key}" requires authentication. Run: opencode mcp auth ${key}`,
-                    variant: "warning",
-                    duration: 8000,
-                  })
-                  .pipe(Effect.ignore, Effect.as(undefined))
+                return
               }
-            }
 
-            lastStatus = { status: "failed" as const, error: lastError.message }
-            return Effect.void
-          }),
+              lastStatus = { status: "failed" as const, error: lastError.message }
+              return
+            }),
+          ),
         )
-        if (result) return { client: result.client, status: { status: "connected" } as Status }
+        if (result) {
+          return { client: result.client, status: { status: "connected" } as Status }
+        }
         // If this was an auth error, stop trying other transports
         if (lastStatus?.status === "needs_auth" || lastStatus?.status === "needs_client_registration") break
       }
@@ -332,7 +382,7 @@ export const layer = Layer.effect(
       })
 
       const connectTimeout = mcp.timeout ?? DEFAULT_TIMEOUT
-      return yield* connectTransport(transport, connectTimeout).pipe(
+      return yield* connectTransport(transport, connectTimeout, `${key}:stdio`).pipe(
         Effect.map((client): { client: MCPClient | undefined; status: Status } => ({
           client,
           status: { status: "connected" },
@@ -357,7 +407,7 @@ export const layer = Layer.effect(
 
         if (!mcpClient) {
           if (status.status !== "connected" && status.status !== "disabled") {
-            yield* Effect.logWarning("server unavailable", { key, type: mcp.type, status: status.status })
+            yield* Effect.logWarning("server unavailable", { key, type: mcp.type, status: status.status, error: status.error })
           }
           return { status } satisfies CreateResult
         }
