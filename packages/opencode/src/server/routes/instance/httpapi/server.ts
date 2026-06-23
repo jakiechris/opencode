@@ -104,7 +104,7 @@ import { errorLayer } from "./middleware/error"
 import { fenceLayer } from "./middleware/fence"
 import { schemaErrorLayer } from "./middleware/schema-error"
 
-export const context = Context.makeUnsafe<unknown>(new Map())
+export { context } from "./context"
 
 const cors = (corsOptions?: CorsOptions) =>
   HttpRouter.middleware(

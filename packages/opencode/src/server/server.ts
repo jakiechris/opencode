@@ -1,7 +1,9 @@
 import "./init-projectors"
 
 import { NodeHttpServer } from "@effect/platform-node"
-import { ConfigProvider, Context, Effect, Exit, Layer, Scope } from "effect"
+import { makeHandler, makeUpgradeHandler } from "@effect/platform-node/NodeHttpServer"
+import { WebSocketServer } from "ws"
+import { ConfigProvider, Context, Duration, Effect, Exit, Layer, Scope } from "effect"
 import { HttpRouter, HttpServer } from "effect/unstable/http"
 import { OpenApi } from "effect/unstable/httpapi"
 import { createServer } from "node:http"
@@ -10,6 +12,7 @@ import { HttpApiApp } from "./routes/instance/httpapi/server"
 import { disposeMiddleware } from "./routes/instance/httpapi/lifecycle"
 import { WebSocketTracker } from "./routes/instance/httpapi/websocket-tracker"
 import { PublicApi } from "./routes/instance/httpapi/public"
+import { context as httpApiContext } from "./routes/instance/httpapi/context"
 import type { CorsOptions } from "./cors"
 import { lazy } from "@/util/lazy"
 
@@ -97,23 +100,6 @@ const listenEffect: (opts: ListenOptions) => Effect.Effect<EffectListener, unkno
   },
 )
 
-function listenerLayer(opts: ListenOptions, port: number) {
-  return HttpRouter.serve(HttpApiApp.createRoutes(opts), {
-    middleware: disposeMiddleware,
-    disableLogger: true,
-    disableListenLog: true,
-  }).pipe(
-    Layer.provideMerge(WebSocketTracker.layer),
-    Layer.provideMerge(serverLayer({ port, hostname: opts.hostname })),
-    // Install a fresh `ConfigProvider` per listener so `Config.string(...)`
-    // reads reflect the current `process.env`. Effect's default
-    // `ConfigProvider` snapshots `process.env` on first read and caches the
-    // result on a module-singleton Reference; without overriding it here,
-    // every later `Server.listen()` keeps observing that initial snapshot.
-    Layer.provide(ConfigProvider.layer(ConfigProvider.fromEnv())),
-  )
-}
-
 function startWithPortFallback(opts: ListenOptions) {
   if (opts.port !== 0) return startListener(opts, opts.port)
   // Match the legacy listener port-resolution behavior: explicit `0` prefers
@@ -123,17 +109,53 @@ function startWithPortFallback(opts: ListenOptions) {
 
 function startListener(opts: ListenOptions, port: number) {
   const scope = Scope.makeUnsafe()
-  return Layer.buildWithMemoMap(listenerLayer(opts, port), Layer.makeMemoMapUnsafe(), scope).pipe(
-    Effect.provide(HttpApiApp.context),
+  const memoMap = Layer.makeMemoMapUnsafe()
+
+  // Shared layer instances — reference equality matters for memo-map reuse.
+  const server = serverLayer({ port, hostname: opts.hostname })
+  const wsTracker = WebSocketTracker.layer
+  const cfgProvider = ConfigProvider.layer(ConfigProvider.fromEnv())
+
+  // Phase 1: server + websocket + config only — fast (~200ms).
+  // The server starts listening with a 503 catch-all handler.
+  const phase1Layer = Layer.mergeAll(server, wsTracker).pipe(Layer.provide(cfgProvider))
+
+  // Phase 2: full routes layer. HttpApiApp and disposeMiddleware are statically
+  // imported — `server.ts` itself is already lazily loaded by serve.ts, so these
+  // imports don't add to serve cold start.
+  const phase2Layer = HttpRouter.serve(HttpApiApp.createRoutes(opts), {
+    middleware: disposeMiddleware,
+    disableLogger: true,
+    disableListenLog: true,
+  }).pipe(
+    Layer.provideMerge(wsTracker),
+    Layer.provideMerge(server),
+    Layer.provide(cfgProvider),
+  )
+
+  return Effect.gen(function* () {
+    // === Phase 1: start listening immediately ===
+    const phase1Ctx = yield* Layer.buildWithMemoMap(phase1Layer, memoMap, scope).pipe(
+      Effect.provide(httpApiContext),
+    )
+
+    // === Phase 2: build routes in background ===
+    yield* Effect.forkDetach(
+      Effect.gen(function* () {
+        yield* Layer.buildWithMemoMap(phase2Layer, memoMap, scope).pipe(
+          Effect.provide(httpApiContext),
+        )
+      }).pipe(
+        Effect.catchCause((cause) => Effect.logError("Phase 2 route build failed", cause)),
+      ),
+    )
+
+    const httpServer = Context.get(phase1Ctx, HttpServer.HttpServer)
+    const http = Context.get(phase1Ctx, ListenerServerService)
+    const websockets = Context.get(phase1Ctx, WebSocketTracker.Service)
+    return { scope, server: httpServer, http, websockets } satisfies ListenerState
+  }).pipe(
     Effect.onError(() => Scope.close(scope, Exit.void).pipe(Effect.ignore)),
-    Effect.map(
-      (ctx): ListenerState => ({
-        scope,
-        server: Context.get(ctx, HttpServer.HttpServer),
-        http: Context.get(ctx, ListenerServerService),
-        websockets: Context.get(ctx, WebSocketTracker.Service),
-      }),
-    ),
   )
 }
 
@@ -201,8 +223,88 @@ function serverLayer(opts: { port: number; hostname: string }) {
     return result
   }) as typeof server.close
 
+  // Phase 1→2 gap: respond 503 until real routes are built and swapped in.
+  const handler503: import("node:http").RequestListener = (_req, res) => {
+    if (!res.headersSent) {
+      res.writeHead(503, { "Content-Type": "application/json" })
+      res.end(JSON.stringify({ error: "Server starting..." }))
+    }
+  }
+  server.on("request", handler503)
+
   return Layer.mergeAll(
-    NodeHttpServer.layer(() => server, { port: opts.port, host: opts.hostname, gracefulShutdownTimeout: "1 second" }),
+    // Custom HttpServer that manages the Phase 1 → Phase 2 handler swap.
+    // Replaces NodeHttpServer.layer so we can inject the 503 handler and
+    // atomically remove it when Phase 2 installs the real request handler.
+    Layer.effect(HttpServer.HttpServer)(
+      Effect.gen(function* () {
+        const scope = yield* Effect.scope
+
+        // --- Shutdown handling (mirrors NodeHttpServer.make) ---
+        const shutdown = yield* Effect.callback<Effect.Effect<void>>((resume) => {
+          if (!server.listening) return resume(Effect.void)
+          server.close((error) => {
+            if (error) resume(Effect.die(error))
+            else resume(Effect.void)
+          })
+        }).pipe(Effect.cached)
+        const preemptiveShutdown = Effect.timeoutOrElse(shutdown, {
+          duration: Duration.seconds(1),
+          orElse: () => Effect.void,
+        })
+        yield* Scope.addFinalizer(scope, shutdown)
+
+        // --- Start listening (Phase 1 — fast, no routes yet) ---
+        yield* Effect.callback((resume: (e: Effect.Effect<void>) => void) => {
+          function onError(cause: Error) {
+            resume(Effect.fail(new Error(`Server listen failed: ${cause.message}`)))
+          }
+          server.on("error", onError)
+          server.listen({ port: opts.port, host: opts.hostname }, () => {
+            server.off("error", onError)
+            resume(Effect.void)
+          })
+        })
+
+        const address = server.address()
+        // --- WebSocket server ---
+        const wss = yield* Effect.acquireRelease(
+          Effect.sync(() => new WebSocketServer({ noServer: true })),
+          (wss) => Effect.callback((resume) => { wss.close(() => resume(Effect.void)) }),
+        ).pipe(Scope.provide(scope), Effect.cached)
+
+        return HttpServer.make({
+          address:
+            typeof address === "string"
+              ? ({ _tag: "UnixAddress" as const, path: address })
+              : ({
+                  _tag: "TcpAddress" as const,
+                  hostname: address.address === "::" ? "0.0.0.0" : address.address,
+                  port: address.port,
+                }),
+          serve: Effect.fnUntraced(function* (httpApp, middleware) {
+            // ATOMIC: remove 503 handler before installing the real handler.
+            // Both operations happen synchronously in the same microtask, so
+            // no request can be processed between them.
+            server.off("request", handler503)
+
+            const serveScope = yield* Effect.scope
+            const handlerScope = Scope.forkUnsafe(serveScope, "parallel")
+            const handler = yield* makeHandler(httpApp, { middleware, scope: handlerScope })
+            const upgradeHandler = yield* makeUpgradeHandler(wss, httpApp, { middleware, scope: handlerScope })
+
+            yield* Scope.addFinalizerExit(serveScope, () => {
+              server.off("request", handler)
+              server.off("upgrade", upgradeHandler)
+              return preemptiveShutdown
+            })
+            server.on("request", handler)
+            server.on("upgrade", upgradeHandler)
+          }),
+        })
+      }),
+    ),
+    NodeHttpServer.layerHttpServices,
     Layer.succeed(ListenerServerService)(
       ListenerServerService.of({
         closeAll: Effect.sync(() => {

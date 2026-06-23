@@ -20,24 +20,24 @@ export const ServeCommand = {
   },
   handler: async (args: NetworkOptions & { "--"?: string[] }) => {
     console.log(`[${ts()}] opencode serve entry`)
-    const { AppRuntime } = await import("@/effect/app-runtime")
-    const { Effect } = await import("effect")
-    const { resolveNetworkOptions } = await import("../network")
+    // Resolve network options without Config service (no Effect stack needed).
+    // Server.listen() uses its own Effect.runPromise internally, so the serve
+    // entry point doesn't need to import AppRuntime or the full service graph.
+    const { resolveNetworkOptionsNoConfig } = await import("../network")
+    const opts = resolveNetworkOptionsNoConfig(args)
+
+    const { Server } = await import("../../server/server")
     const { Flag } = await import("@opencode-ai/core/flag/flag")
 
-    const inner = Effect.fn("Cli.serve")(function* (a: NetworkOptions & { "--"?: string[] }) {
-      const { Server } = yield* Effect.promise(() => import("../../server/server"))
-      if (!Flag.OPENCODE_SERVER_PASSWORD) {
-        console.log("Warning: OPENCODE_SERVER_PASSWORD is not set; server is unsecured.")
-      }
-      const opts = yield* resolveNetworkOptions(a)
-      const server = yield* Effect.promise(() => Server.listen(opts))
-      console.log(`[${ts()}] opencode server ready`)
-      console.log(`opencode server listening on http://${server.hostname}:${server.port}`)
+    if (!Flag.OPENCODE_SERVER_PASSWORD) {
+      console.log("Warning: OPENCODE_SERVER_PASSWORD is not set; server is unsecured.")
+    }
 
-      yield* Effect.never
-    })
+    const server = await Server.listen(opts)
+    console.log(`[${ts()}] opencode server ready`)
+    console.log(`opencode server listening on http://${server.hostname}:${server.port}`)
 
-    await AppRuntime.runPromise(inner(args))
+    // Wait forever — the server runs until the process is killed
+    await new Promise(() => {})
   },
 }
