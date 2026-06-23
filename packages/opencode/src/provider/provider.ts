@@ -1055,6 +1055,7 @@ export type ListResult = Types.DeepMutable<Schema.Schema.Type<typeof ListResult>
 export const ConfigProvidersResult = Schema.Struct({
   providers: Schema.Array(Info),
   default: DefaultModelIDs,
+  model: Schema.optional(Schema.String),
 })
 export type ConfigProvidersResult = Types.DeepMutable<Schema.Schema.Type<typeof ConfigProvidersResult>>
 

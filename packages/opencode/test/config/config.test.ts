@@ -947,7 +947,7 @@ it.effect("installs dependencies in writable OPENCODE_CONFIG_DIR", () =>
       ),
     )
 
-    expect(yield* FSUtil.use.readFileString(path.join(configDir, ".gitignore"))).toContain("package-lock.json")
+    expect(yield* FSUtil.use.existsSafe(path.join(configDir, "node_modules"))).toBe(true)
   }).pipe(Effect.provide(testInstanceStoreLayer), Effect.provide(CrossSpawnSpawner.defaultLayer)),
 )
 
