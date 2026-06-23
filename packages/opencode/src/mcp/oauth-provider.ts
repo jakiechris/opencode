@@ -24,6 +24,13 @@ export interface McpOAuthCallbacks {
 }
 
 export class McpOAuthProvider implements OAuthClientProvider {
+  /** In-memory token cache to avoid reading mcp-auth.json from disk on every
+   * MCP request. The SDK calls `tokens()` in `_commonHeaders()` for every
+   * single request (tools/call, tools/list, prompts/list, etc.). Without
+   * caching, each call hits `Effect.runPromise` → `flock.withLock` → disk
+   * read, which can cause 30 s timeouts under lock contention. */
+  private tokenCache: OAuthTokens | undefined | null = undefined
+
   constructor(
     private mcpName: string,
     private serverUrl: string,
@@ -95,11 +102,18 @@ export class McpOAuthProvider implements OAuthClientProvider {
   }
 
   async tokens(): Promise<OAuthTokens | undefined> {
+    // Return cached tokens when available — avoids reading mcp-auth.json
+    // from disk (with file locking) on every MCP request.
+    if (this.tokenCache !== undefined) return this.tokenCache ?? undefined
+
     // Use getForUrl to validate tokens are for the current server URL
     const entry = await Effect.runPromise(this.auth.getForUrl(this.mcpName, this.serverUrl))
-    if (!entry?.tokens) return undefined
+    if (!entry?.tokens) {
+      this.tokenCache = null
+      return undefined
+    }
 
-    return {
+    const tokens: OAuthTokens = {
       access_token: entry.tokens.accessToken,
       token_type: "Bearer",
       refresh_token: entry.tokens.refreshToken,
@@ -108,9 +122,12 @@ export class McpOAuthProvider implements OAuthClientProvider {
         : undefined,
       scope: entry.tokens.scope,
     }
+    this.tokenCache = tokens
+    return tokens
   }
 
   async saveTokens(tokens: OAuthTokens): Promise<void> {
+    this.tokenCache = tokens
     await Effect.runPromise(
       this.auth.updateTokens(
         this.mcpName,
@@ -163,6 +180,9 @@ export class McpOAuthProvider implements OAuthClientProvider {
   }
 
   async invalidateCredentials(type: "all" | "client" | "tokens"): Promise<void> {
+    if (type === "all" || type === "tokens") {
+      this.tokenCache = undefined
+    }
     const entry = await Effect.runPromise(this.auth.get(this.mcpName))
     if (!entry) {
       return
