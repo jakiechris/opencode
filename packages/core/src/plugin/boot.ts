@@ -101,9 +101,40 @@ export const layer = Layer.effect(
       yield* add(AgentPlugin.Plugin)
       yield* add(CommandPlugin.Plugin)
       yield* add(SkillPlugin.Plugin)
-      for (const item of ProviderPlugins) {
-        yield* add(item)
+
+      // Only load provider plugins that match the user's configured providers.
+      // Reading the config here is safe — Config.Service is in scope.
+      const entries = yield* config.entries()
+      const configured = Config.latest(entries, "providers") ?? {}
+      const providerKeys = Object.keys(configured)
+      if (providerKeys.length > 0) {
+        const needed = new Set<string>()
+        for (const key of providerKeys) {
+          const api = configured[key]?.api
+          if (api?.type === "aisdk" && api.package.startsWith("@ai-sdk/")) {
+            needed.add(api.package.slice("@ai-sdk/".length).split("/")[0])
+          } else {
+            needed.add("dynamic-provider")
+          }
+        }
+        // Catch-alls for custom OpenAI-compatible and native/dynamic providers
+        needed.add("openai-compatible")
+        needed.add("dynamic-provider")
+        const filtered = ProviderPlugins.filter((item) => needed.has(item.id))
+        yield* Effect.logInfo("PluginBoot: filter providers", {
+          loaded: filtered.length,
+          total: ProviderPlugins.length,
+        })
+        for (const item of filtered) {
+          yield* add(item)
+        }
+      } else {
+        yield* Effect.logInfo("PluginBoot: no providers configured, loading all")
+        for (const item of ProviderPlugins) {
+          yield* add(item)
+        }
       }
+
       yield* add(ModelsDevPlugin)
       yield* add(ConfigProviderPlugin.Plugin)
       yield* add(ConfigAgentPlugin.Plugin)
