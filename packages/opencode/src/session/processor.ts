@@ -447,7 +447,6 @@ export const layer = Layer.effect(
               ctx.toolcalls[value.id] = { ...toolCall.call, raw: toolCall.call.raw + value.text }
             }
             return
-          }
 
           case "tool-input-end": {
             const toolCall = yield* ensureToolCall(value)
