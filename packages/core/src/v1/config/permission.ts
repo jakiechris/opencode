@@ -26,7 +26,6 @@ const InputObject = Schema.StructWithRest(
     external_directory: Schema.optional(Rule),
     todowrite: Schema.optional(Action),
     question: Schema.optional(Action),
-    webfetch: Schema.optional(Action),
     websearch: Schema.optional(Action),
     lsp: Schema.optional(Rule),
     doom_loop: Schema.optional(Action),

@@ -723,8 +723,6 @@ export const dict = {
   "settings.permissions.tool.lsp.description": "언어 서버 쿼리 실행",
   "settings.permissions.tool.todowrite.title": "할 일 쓰기",
   "settings.permissions.tool.todowrite.description": "할 일 목록 업데이트",
-  "settings.permissions.tool.webfetch.title": "웹 가져오기",
-  "settings.permissions.tool.webfetch.description": "URL에서 콘텐츠 가져오기",
   "settings.permissions.tool.websearch.title": "웹 검색",
   "settings.permissions.tool.websearch.description": "웹 검색",
   "settings.permissions.tool.external_directory.title": "외부 디렉터리",

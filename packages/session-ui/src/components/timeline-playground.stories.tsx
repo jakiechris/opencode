@@ -359,13 +359,6 @@ const TOOL_SAMPLES = {
     title: "Agent (Explore)",
     metadata: { sessionId: "sub-session-1" },
   },
-  webfetch: {
-    tool: "webfetch",
-    input: { url: "https://solidjs.com/docs/latest/api" },
-    output: "# SolidJS API Reference\n\nCore primitives for building reactive applications...",
-    title: "Fetch https://solidjs.com/docs/latest/api",
-    metadata: {},
-  },
   websearch: {
     tool: "websearch",
     input: { query: "SolidJS createStore performance" },

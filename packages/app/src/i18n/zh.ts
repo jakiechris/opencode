@@ -807,8 +807,6 @@ export const dict = {
   "settings.permissions.tool.lsp.description": "运行语言服务器查询",
   "settings.permissions.tool.todowrite.title": "更新待办",
   "settings.permissions.tool.todowrite.description": "更新待办列表",
-  "settings.permissions.tool.webfetch.title": "网页获取",
-  "settings.permissions.tool.webfetch.description": "从 URL 获取内容",
   "settings.permissions.tool.websearch.title": "网页搜索",
   "settings.permissions.tool.websearch.description": "搜索网页",
   "settings.permissions.tool.external_directory.title": "外部目录",

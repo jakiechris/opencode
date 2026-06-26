@@ -1140,13 +1140,12 @@ it.instance("migrates legacy tools config to permissions - deny", () =>
     const test = yield* TestInstance
     yield* writeConfigEffect(test.directory, {
       $schema: "https://opencode.ai/config.json",
-      agent: { test: { tools: { bash: false, webfetch: false } } },
+      agent: { test: { tools: { bash: false } } },
     })
 
     const config = yield* Config.use.get()
     expect(config.agent?.["test"]?.permission).toEqual({
       bash: "deny",
-      webfetch: "deny",
     })
   }),
 )
@@ -1250,7 +1249,7 @@ it.instance("migrates mixed legacy tools config", () =>
     const test = yield* TestInstance
     yield* writeConfigEffect(test.directory, {
       $schema: "https://opencode.ai/config.json",
-      agent: { test: { tools: { bash: true, write: true, read: false, webfetch: true } } },
+      agent: { test: { tools: { bash: true, write: true, read: false } } },
     })
 
     const config = yield* Config.use.get()
@@ -1258,7 +1257,6 @@ it.instance("migrates mixed legacy tools config", () =>
       bash: "allow",
       edit: "allow",
       read: "deny",
-      webfetch: "allow",
     })
   }),
 )
@@ -1993,7 +1991,6 @@ test("parseManagedPlist parses permission rules", async () => {
             bash: { "*": "ask", "rm -rf *": "deny", "curl *": "deny" },
             grep: "allow",
             glob: "allow",
-            webfetch: "ask",
             "~/.ssh/*": "deny",
           },
         }),
@@ -2004,7 +2001,6 @@ test("parseManagedPlist parses permission rules", async () => {
   )
   expect(config.permission?.["*"]).toBe("ask")
   expect(config.permission?.grep).toBe("allow")
-  expect(config.permission?.webfetch).toBe("ask")
   expect(config.permission?.["~/.ssh/*"]).toBe("deny")
   const bash = config.permission?.bash as Record<string, string>
   expect(bash?.["rm -rf *"]).toBe("deny")

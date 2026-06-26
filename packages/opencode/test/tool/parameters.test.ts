@@ -22,7 +22,6 @@ import { Parameters as Shell } from "../../src/tool/shell"
 import { Parameters as Skill } from "../../src/tool/skill"
 import { Parameters as Task } from "../../src/tool/task"
 import { Parameters as Todo } from "../../src/tool/todo"
-import { Parameters as WebFetch } from "../../src/tool/webfetch"
 import { Parameters as WebSearch } from "../../src/tool/websearch"
 import { Parameters as Write } from "../../src/tool/write"
 
@@ -49,7 +48,6 @@ describe("tool parameters", () => {
     test("skill", () => expect(toJsonSchema(Skill)).toMatchSnapshot())
     test("task", () => expect(toJsonSchema(Task)).toMatchSnapshot())
     test("todo", () => expect(toJsonSchema(Todo)).toMatchSnapshot())
-    test("webfetch", () => expect(toJsonSchema(WebFetch)).toMatchSnapshot())
     test("websearch", () => expect(toJsonSchema(WebSearch)).toMatchSnapshot())
     test("write", () => expect(toJsonSchema(Write)).toMatchSnapshot())
 
@@ -83,13 +81,7 @@ describe("tool parameters", () => {
       })
     })
 
-    test("does not expose defaulted optional keys as nullable", () => {
-      expect(toJsonSchema(WebFetch)).toMatchObject({
-        properties: { format: { type: "string", enum: ["text", "markdown", "html"], default: "markdown" } },
-      })
-      expect(toJsonSchema(WebFetch).properties?.format).not.toHaveProperty("anyOf")
     })
-  })
 
   describe("apply_patch", () => {
     test("accepts patchText", () => {
@@ -257,19 +249,6 @@ describe("tool parameters", () => {
     })
     test("rejects missing todos", () => {
       expect(accepts(Todo, {})).toBe(false)
-    })
-  })
-
-  describe("webfetch", () => {
-    test("defaults omitted format to markdown", () => {
-      expect(parse(WebFetch, { url: "https://example.com" })).toEqual({
-        url: "https://example.com",
-        format: "markdown",
-      })
-      expect(parse(WebFetch, { url: "https://example.com", format: undefined })).toEqual({
-        url: "https://example.com",
-        format: "markdown",
-      })
     })
   })
 

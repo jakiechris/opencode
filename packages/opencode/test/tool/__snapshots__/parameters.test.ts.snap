@@ -373,36 +373,6 @@ exports[`tool parameters JSON Schema (wire shape) todo 1`] = `
 }
 `;
 
-exports[`tool parameters JSON Schema (wire shape) webfetch 1`] = `
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "properties": {
-    "format": {
-      "default": "markdown",
-      "description": "The format to return the content in (text, markdown, or html). Defaults to markdown.",
-      "enum": [
-        "text",
-        "markdown",
-        "html",
-      ],
-      "type": "string",
-    },
-    "timeout": {
-      "description": "Optional timeout in seconds (max 120)",
-      "type": "number",
-    },
-    "url": {
-      "description": "The URL to fetch content from",
-      "type": "string",
-    },
-  },
-  "required": [
-    "url",
-  ],
-  "type": "object",
-}
-`;
-
 exports[`tool parameters JSON Schema (wire shape) websearch 1`] = `
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",

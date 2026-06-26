@@ -105,7 +105,6 @@ export const dict = {
   "ui.tool.list": "清單",
   "ui.tool.glob": "Glob",
   "ui.tool.grep": "Grep",
-  "ui.tool.webfetch": "Webfetch",
   "ui.tool.websearch": "網頁搜尋",
   "ui.tool.shell": "Shell",
   "ui.tool.patch": "修補",

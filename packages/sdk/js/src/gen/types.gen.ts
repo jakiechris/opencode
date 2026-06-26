@@ -1001,7 +1001,6 @@ export type AgentConfig = {
       | {
           [key: string]: "ask" | "allow" | "deny"
         }
-    webfetch?: "ask" | "allow" | "deny"
     doom_loop?: "ask" | "allow" | "deny"
     external_directory?: "ask" | "allow" | "deny"
   }
@@ -1022,7 +1021,6 @@ export type AgentConfig = {
           | {
               [key: string]: "ask" | "allow" | "deny"
             }
-        webfetch?: "ask" | "allow" | "deny"
         doom_loop?: "ask" | "allow" | "deny"
         external_directory?: "ask" | "allow" | "deny"
       }
@@ -1330,7 +1328,6 @@ export type Config = {
       | {
           [key: string]: "ask" | "allow" | "deny"
         }
-    webfetch?: "ask" | "allow" | "deny"
     doom_loop?: "ask" | "allow" | "deny"
     external_directory?: "ask" | "allow" | "deny"
   }
@@ -1595,7 +1592,6 @@ export type Agent = {
     bash: {
       [key: string]: "ask" | "allow" | "deny"
     }
-    webfetch?: "ask" | "allow" | "deny"
     doom_loop?: "ask" | "allow" | "deny"
     external_directory?: "ask" | "allow" | "deny"
   }

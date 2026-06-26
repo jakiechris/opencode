@@ -1007,8 +1007,6 @@ export const dict = {
   "settings.permissions.tool.lsp.description": "Run language server queries",
   "settings.permissions.tool.todowrite.title": "Todo Write",
   "settings.permissions.tool.todowrite.description": "Update the todo list",
-  "settings.permissions.tool.webfetch.title": "Web Fetch",
-  "settings.permissions.tool.webfetch.description": "Fetch content from a URL",
   "settings.permissions.tool.websearch.title": "Web Search",
   "settings.permissions.tool.websearch.description": "Search the web",
   "settings.permissions.tool.external_directory.title": "External Directory",

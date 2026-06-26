@@ -730,8 +730,6 @@ export const dict = {
   "settings.permissions.tool.lsp.description": "Uruchamianie zapytań serwera językowego",
   "settings.permissions.tool.todowrite.title": "Zapis Todo",
   "settings.permissions.tool.todowrite.description": "Aktualizacja listy zadań",
-  "settings.permissions.tool.webfetch.title": "Pobieranie z sieci",
-  "settings.permissions.tool.webfetch.description": "Pobieranie zawartości z adresu URL",
   "settings.permissions.tool.websearch.title": "Wyszukiwanie w sieci",
   "settings.permissions.tool.websearch.description": "Przeszukiwanie sieci",
   "settings.permissions.tool.external_directory.title": "Katalog zewnętrzny",

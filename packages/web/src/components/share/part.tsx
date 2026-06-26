@@ -4,7 +4,6 @@ import { For, Show, Match, Switch, type JSX, createMemo, createSignal, type Pare
 import {
   IconHashtag,
   IconSparkles,
-  IconGlobeAlt,
   IconDocument,
   IconPaperClip,
   IconQueueList,
@@ -110,9 +109,6 @@ export function Part(props: PartProps) {
               </Match>
               <Match when={props.part.type === "tool" && props.part.tool === "glob"}>
                 <IconMagnifyingGlass width={18} height={18} />
-              </Match>
-              <Match when={props.part.type === "tool" && props.part.tool === "webfetch"}>
-                <IconGlobeAlt width={18} height={18} />
               </Match>
               <Match when={props.part.type === "tool" && props.part.tool === "task"}>
                 <IconRobot width={18} height={18} />
@@ -250,14 +246,6 @@ export function Part(props: PartProps) {
                   </Match>
                   <Match when={props.part.tool === "todowrite"}>
                     <TodoWriteTool
-                      message={props.message}
-                      id={props.part.id}
-                      tool={props.part.tool}
-                      state={props.part.state}
-                    />
-                  </Match>
-                  <Match when={props.part.tool === "webfetch"}>
-                    <WebFetchTool
                       message={props.message}
                       id={props.part.id}
                       tool={props.part.tool}
@@ -477,31 +465,6 @@ export function ListTool(props: ToolProps) {
           <Match when={props.state.output}>
             <ResultsButton>
               <ContentText expand compact text={props.state.output} />
-            </ResultsButton>
-          </Match>
-        </Switch>
-      </div>
-    </>
-  )
-}
-
-export function WebFetchTool(props: ToolProps) {
-  const messages = useShareMessages()
-
-  return (
-    <>
-      <div data-component="tool-title">
-        <span data-slot="name">Fetch</span>
-        <span data-slot="target">{props.state.input.url}</span>
-      </div>
-      <div data-component="tool-result">
-        <Switch>
-          <Match when={props.state.metadata?.error}>
-            <ContentError>{formatErrorString(props.state.output, messages.error)}</ContentError>
-          </Match>
-          <Match when={props.state.output}>
-            <ResultsButton>
-              <ContentCode lang={props.state.input.format || "text"} code={props.state.output} />
             </ResultsButton>
           </Match>
         </Switch>

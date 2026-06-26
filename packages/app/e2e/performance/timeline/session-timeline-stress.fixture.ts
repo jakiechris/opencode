@@ -224,7 +224,6 @@ function turn(index: number): Message[] {
     ...(index % 7 === 0
       ? [toolPart(index, 4, "bash", { command: "bun typecheck", description: "Verify generated output" }, 620)]
       : []),
-    ...(index % 10 === 0 ? [toolPart(index, 9, "webfetch", { url: "https://example.com/docs/sample" }, 120)] : []),
     ...(index % 11 === 0 ? [toolPart(index, 10, "websearch", { query: "sample movement notes" }, 240)] : []),
     ...(index % 13 === 0
       ? [

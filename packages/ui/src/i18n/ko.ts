@@ -102,7 +102,6 @@ export const dict = {
   "ui.tool.list": "목록",
   "ui.tool.glob": "Glob",
   "ui.tool.grep": "Grep",
-  "ui.tool.webfetch": "웹 가져오기",
   "ui.tool.websearch": "웹 검색",
   "ui.tool.shell": "셸",
   "ui.tool.patch": "패치",

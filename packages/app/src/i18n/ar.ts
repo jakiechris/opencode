@@ -723,8 +723,6 @@ export const dict = {
   "settings.permissions.tool.lsp.description": "تشغيل استعلامات خادم اللغة",
   "settings.permissions.tool.todowrite.title": "كتابة المهام",
   "settings.permissions.tool.todowrite.description": "تحديث قائمة المهام",
-  "settings.permissions.tool.webfetch.title": "جلب الويب",
-  "settings.permissions.tool.webfetch.description": "جلب محتوى من عنوان URL",
   "settings.permissions.tool.websearch.title": "بحث الويب",
   "settings.permissions.tool.websearch.description": "البحث في الويب",
   "settings.permissions.tool.external_directory.title": "دليل خارجي",

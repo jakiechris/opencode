@@ -127,7 +127,6 @@ describe("LocationServiceMap", () => {
             "read",
             "skill",
             "todowrite",
-            "webfetch",
             "websearch",
             "write",
           ])
@@ -144,7 +143,6 @@ describe("LocationServiceMap", () => {
             "read",
             "skill",
             "todowrite",
-            "webfetch",
             "websearch",
             "write",
           ])

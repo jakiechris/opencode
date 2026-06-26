@@ -299,21 +299,6 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
               }
             }
 
-            if (permission === "webfetch") {
-              const url = typeof data.url === "string" ? data.url : ""
-              return {
-                icon: "%",
-                title: `WebFetch ${url}`,
-                body: (
-                  <Show when={url}>
-                    <box paddingLeft={1}>
-                      <text fg={theme.textMuted}>{"URL: " + url}</text>
-                    </box>
-                  </Show>
-                ),
-              }
-            }
-
             if (permission === "websearch") {
               const query = typeof data.query === "string" ? data.query : ""
               return {

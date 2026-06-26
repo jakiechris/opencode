@@ -728,8 +728,6 @@ export const dict = {
   "settings.permissions.tool.lsp.description": "言語サーバークエリの実行",
   "settings.permissions.tool.todowrite.title": "Todo書き込み",
   "settings.permissions.tool.todowrite.description": "Todoリストの更新",
-  "settings.permissions.tool.webfetch.title": "Web取得",
-  "settings.permissions.tool.webfetch.description": "URLからコンテンツを取得",
   "settings.permissions.tool.websearch.title": "Web検索",
   "settings.permissions.tool.websearch.description": "ウェブを検索",
   "settings.permissions.tool.external_directory.title": "外部ディレクトリ",

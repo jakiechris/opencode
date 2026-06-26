@@ -43,9 +43,6 @@ export function toToolKind(toolName: string): ToolKind {
     case "shell":
       return "execute"
 
-    case "webfetch":
-      return "fetch"
-
     case "edit":
     case "apply_patch":
     case "patch":

@@ -203,7 +203,6 @@ export const layer = Layer.effect(
                 glob: "allow",
                 list: "allow",
                 bash: "allow",
-                webfetch: "allow",
                 websearch: "allow",
                 read: "allow",
                 external_directory: readonlyExternalDirectory,

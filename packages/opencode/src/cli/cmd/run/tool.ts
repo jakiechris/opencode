@@ -30,7 +30,6 @@ import type { ReadTool } from "@/tool/read"
 import type { SkillTool } from "@/tool/skill"
 import type { TaskTool } from "@/tool/task"
 import type { TodoWriteTool } from "@/tool/todo"
-import type { WebFetchTool } from "@/tool/webfetch"
 import { webSearchProviderLabel, type WebSearchTool } from "@/tool/websearch"
 import type { WriteTool } from "@/tool/write"
 import { LANGUAGE_EXTENSIONS } from "@/lsp/language"
@@ -106,7 +105,6 @@ type ToolDefs = {
   grep: typeof GrepTool
   list: Tool.Info
   lsp: typeof LspTool
-  webfetch: typeof WebFetchTool
   websearch: typeof WebSearchTool
   skill: typeof SkillTool
   plan_exit: typeof PlanExitTool
@@ -335,14 +333,6 @@ function runWrite(p: ToolProps<typeof WriteTool>): ToolInline {
     title: `Write ${toolPath(p.input.filePath)}`,
     mode: "block",
     body: p.frame.status === "completed" ? text(p.frame.state.output) : undefined,
-  }
-}
-
-function runWebfetch(p: ToolProps<typeof WebFetchTool>): ToolInline {
-  const url = p.input.url ?? ""
-  return {
-    icon: "%",
-    title: url ? `WebFetch ${url}` : "WebFetch",
   }
 }
 
@@ -898,15 +888,6 @@ function scrollListStart(p: ToolProps): string {
   return `→ List ${toolPath(dir)}`
 }
 
-function scrollWebfetchStart(p: ToolProps<typeof WebFetchTool>): string {
-  const url = p.input.url ?? ""
-  if (!url) {
-    return "% WebFetch"
-  }
-
-  return `% WebFetch ${url}`
-}
-
 function scrollWebSearchStart(p: ToolProps<typeof WebSearchTool>): string {
   const title = webSearchProviderLabel(p.metadata.provider)
   const query = p.input.query ?? ""
@@ -981,15 +962,6 @@ function permTask(p: ToolPermissionProps<typeof TaskTool>): ToolPermissionInfo {
     icon: "#",
     title: `${Locale.titlecase(type)} Task`,
     lines: desc ? [`◉ ${desc}`] : [],
-  }
-}
-
-function permWebfetch(p: ToolPermissionProps<typeof WebFetchTool>): ToolPermissionInfo {
-  const url = p.input.url || ""
-  return {
-    icon: "%",
-    title: `WebFetch ${url}`,
-    lines: url ? [`URL: ${url}`] : [],
   }
 }
 
@@ -1186,17 +1158,6 @@ const TOOL_RULES = {
       start: scrollLspStart,
     },
     permission: permLsp,
-  },
-  webfetch: {
-    view: {
-      output: false,
-      final: false,
-    },
-    run: runWebfetch,
-    scroll: {
-      start: scrollWebfetchStart,
-    },
-    permission: permWebfetch,
   },
   websearch: {
     view: {

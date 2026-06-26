@@ -791,8 +791,6 @@ export const dict = {
   "settings.permissions.tool.lsp.description": "執行語言伺服器查詢",
   "settings.permissions.tool.todowrite.title": "更新待辦",
   "settings.permissions.tool.todowrite.description": "更新待辦清單",
-  "settings.permissions.tool.webfetch.title": "Web Fetch",
-  "settings.permissions.tool.webfetch.description": "從 URL 取得內容",
   "settings.permissions.tool.websearch.title": "Web Search",
   "settings.permissions.tool.websearch.description": "搜尋網頁",
   "settings.permissions.tool.external_directory.title": "外部目錄",

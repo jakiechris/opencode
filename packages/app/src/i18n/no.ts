@@ -808,8 +808,6 @@ export const dict = {
   "settings.permissions.tool.lsp.description": "Kjør språkserverforespørsler",
   "settings.permissions.tool.todowrite.title": "Skriv gjøremål",
   "settings.permissions.tool.todowrite.description": "Oppdater gjøremålslisten",
-  "settings.permissions.tool.webfetch.title": "Webhenting",
-  "settings.permissions.tool.webfetch.description": "Hent innhold fra en URL",
   "settings.permissions.tool.websearch.title": "Websøk",
   "settings.permissions.tool.websearch.description": "Søk på nettet",
   "settings.permissions.tool.external_directory.title": "Ekstern mappe",

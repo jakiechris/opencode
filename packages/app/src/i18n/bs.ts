@@ -807,8 +807,6 @@ export const dict = {
   "settings.permissions.tool.lsp.description": "Pokreni upite jezičnog servera",
   "settings.permissions.tool.todowrite.title": "Ažuriranje liste zadataka",
   "settings.permissions.tool.todowrite.description": "Ažuriraj listu zadataka",
-  "settings.permissions.tool.webfetch.title": "Web preuzimanje",
-  "settings.permissions.tool.webfetch.description": "Preuzmi sadržaj sa URL-a",
   "settings.permissions.tool.websearch.title": "Web pretraga",
   "settings.permissions.tool.websearch.description": "Pretražuj web",
   "settings.permissions.tool.external_directory.title": "Vanjski direktorij",

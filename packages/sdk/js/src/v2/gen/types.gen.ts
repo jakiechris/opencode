@@ -1722,7 +1722,6 @@ export type PermissionConfig =
       external_directory?: PermissionRuleConfig
       todowrite?: PermissionActionConfig
       question?: PermissionActionConfig
-      webfetch?: PermissionActionConfig
       websearch?: PermissionActionConfig
       lsp?: PermissionRuleConfig
       doom_loop?: PermissionActionConfig
