@@ -14,7 +14,6 @@ import { TestInstance, tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 import { Config } from "@/config/config"
 import { RuntimeFlags } from "@/effect/runtime-flags"
-import { Git } from "@/git"
 import { Filesystem } from "@/util/filesystem"
 import { Permission } from "../../src/permission"
 import type * as Tool from "../../src/tool/tool"
@@ -26,7 +25,6 @@ const toolLayer = (flags: Partial<RuntimeFlags.Info> = {}) =>
     Ripgrep.defaultLayer,
     Truncate.defaultLayer,
     Agent.defaultLayer,
-    Git.defaultLayer,
   )
 
 const it = testEffect(toolLayer())

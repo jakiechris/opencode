@@ -7,7 +7,6 @@ import { Effect, Layer } from "effect"
 import { MoveSession } from "@opencode-ai/core/control-plane/move-session"
 import { Database } from "@opencode-ai/core/database/database"
 import { FSUtil } from "@opencode-ai/core/fs-util"
-import { Git } from "@opencode-ai/core/git"
 import { EventV2 } from "@opencode-ai/core/event"
 import { Project } from "@opencode-ai/core/project"
 import { ProjectTable } from "@opencode-ai/core/project/sql"
@@ -25,7 +24,6 @@ import { testEffect } from "./lib/effect"
 const project = Project.layer.pipe(
   Layer.provide(Database.defaultLayer),
   Layer.provide(FSUtil.defaultLayer),
-  Layer.provide(Git.defaultLayer),
   Layer.provide(ProjectDirectories.defaultLayer),
 )
 const sessions = SessionV2.layer.pipe(
@@ -39,7 +37,6 @@ const sessions = SessionV2.layer.pipe(
 const layer = MoveSession.layer.pipe(
   Layer.provide(Database.defaultLayer),
   Layer.provide(FSUtil.defaultLayer),
-  Layer.provide(Git.defaultLayer),
   Layer.provide(EventV2.defaultLayer),
   Layer.provide(project),
   Layer.provide(sessions),

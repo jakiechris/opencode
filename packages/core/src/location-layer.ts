@@ -16,7 +16,6 @@ import { Credential } from "./credential"
 import { Npm } from "./npm"
 import { ModelsDev } from "./models-dev"
 import { FSUtil } from "./fs-util"
-import { Git } from "./git"
 import { Global } from "./global"
 import { Database } from "./database/database"
 import { PermissionV2 } from "./permission"
@@ -134,7 +133,6 @@ export class LocationServiceMap extends LayerMap.Service<LocationServiceMap>()("
     Npm.defaultLayer,
     ModelsDev.defaultLayer,
     FSUtil.defaultLayer,
-    Git.defaultLayer,
     AppProcess.defaultLayer,
     Global.defaultLayer,
     Ripgrep.defaultLayer,

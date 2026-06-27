@@ -4,11 +4,9 @@ import { Context, Effect, Layer, Schema } from "effect"
 import path from "path"
 import { AbsolutePath } from "../schema"
 import { FSUtil } from "../fs-util"
-import { Git } from "../git"
 import { LayerNode } from "../effect/layer-node"
 import { Project } from "../project"
 import { ProjectDirectories } from "./directories"
-import { makeGitWorktreeStrategy } from "./copy-strategies"
 import { Slug } from "../util/slug"
 import { EventV2 } from "../event"
 import { Database } from "../database/database"
@@ -81,19 +79,18 @@ export type Error =
   | DirectoryUnavailableError
   | InvalidDirectoryError
   | StrategyUnavailableError
-  | Git.WorktreeError
 
 export interface Strategy {
   readonly id: StrategyID
   readonly create: (input: {
     sourceDirectory: AbsolutePath
     directory: AbsolutePath
-  }) => Effect.Effect<Copy, Git.WorktreeError | DirectoryUnavailableError>
+  }) => Effect.Effect<Copy, DirectoryUnavailableError>
   readonly remove: (input: {
     directory: AbsolutePath
     force: boolean
-  }) => Effect.Effect<void, Git.WorktreeError | DirectoryUnavailableError>
-  readonly list: (directory: AbsolutePath) => Effect.Effect<ListEntry[], Git.WorktreeError | DirectoryUnavailableError>
+  }) => Effect.Effect<void, DirectoryUnavailableError>
+  readonly list: (directory: AbsolutePath) => Effect.Effect<ListEntry[], DirectoryUnavailableError>
 }
 
 export const Event = ProjectDirectoriesEvent
@@ -129,7 +126,6 @@ export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const fs = yield* FSUtil.Service
-    const git = yield* Git.Service
     const directories = yield* ProjectDirectories.Service
     const db = (yield* Database.Service).db
     const events = yield* EventV2.Service
@@ -150,9 +146,6 @@ export const layer = Layer.effect(
       if (registry.has(strategy.id)) return yield* new DuplicateStrategyError({ strategy: strategy.id })
       registry.set(strategy.id, strategy)
     })
-
-    // Register default strategies
-    yield* register(makeGitWorktreeStrategy({ git, canonical })).pipe(Effect.orDie)
 
     const strategies = () => Array.from(registry.values())
 
@@ -279,4 +272,4 @@ export const layer = Layer.effect(
 )
 
 export const locationLayer = layer
-export const node = LayerNode.make(layer, [FSUtil.node, Git.node, ProjectDirectories.node, EventV2.node, Database.node])
+export const node = LayerNode.make(layer, [FSUtil.node, ProjectDirectories.node, EventV2.node, Database.node])

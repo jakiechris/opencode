@@ -18,7 +18,6 @@ import { Permission } from "../../src/permission"
 import type * as Tool from "../../src/tool/tool"
 import { Config } from "@/config/config"
 import { RuntimeFlags } from "@/effect/runtime-flags"
-import { Git } from "@/git"
 import { Filesystem } from "@/util/filesystem"
 
 const toolLayer = (flags: Partial<RuntimeFlags.Info> = {}) =>
@@ -28,7 +27,6 @@ const toolLayer = (flags: Partial<RuntimeFlags.Info> = {}) =>
     Ripgrep.defaultLayer,
     Truncate.defaultLayer,
     Agent.defaultLayer,
-    Git.defaultLayer,
   )
 
 const it = testEffect(toolLayer())

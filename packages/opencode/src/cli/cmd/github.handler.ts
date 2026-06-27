@@ -28,9 +28,10 @@ import { MessageV2 } from "../../session/message-v2"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { EventV2 } from "@opencode-ai/core/event"
 import { SessionPrompt } from "@/session/prompt"
-import { Git } from "@/git"
-import { setTimeout as sleep } from "node:timers/promises"
 import { Process } from "@/util/process"
+import { AppProcess } from "@opencode-ai/core/process"
+import { ChildProcess } from "effect/unstable/process"
+import { setTimeout as sleep } from "node:timers/promises"
 import { parseGitHubRemote } from "@/util/repository"
 import { Effect } from "effect"
 import { extractResponseText, formatPromptTooLargeError } from "./github.shared"
@@ -157,7 +158,19 @@ export const githubInstall = Effect.fn("Cli.github.install")(function* () {
   if (!maybeCtx) return yield* Effect.die("InstanceRef not provided")
   const ctx = maybeCtx
   const modelsDev = yield* ModelsDev.Service
-  const gitSvc = yield* Git.Service
+  const appProcess = yield* AppProcess.Service
+  const gitSvc = {
+    run: (args: string[], opts: { cwd: string }) =>
+      appProcess.run(ChildProcess.make("git", args, { cwd: opts.cwd, extendEnv: true }), { maxOutputBytes: 10 * 1024 * 1024 }).pipe(
+        Effect.map((result) => ({
+          exitCode: result.exitCode,
+          text: () => result.stdout.toString("utf8"),
+          stdout: result.stdout,
+          stderr: result.stderr,
+          truncated: result.stdoutTruncated || result.stderrTruncated,
+        })),
+      ),
+  }
   yield* Effect.promise(async () => {
     {
       UI.empty()
@@ -376,7 +389,19 @@ jobs:
 export const githubRun = Effect.fn("Cli.github.run")(function* (args: { event?: string; token?: string }) {
   const ctx = yield* InstanceRef
   if (!ctx) return yield* Effect.die("InstanceRef not provided")
-  const gitSvc = yield* Git.Service
+  const appProcess = yield* AppProcess.Service
+  const gitSvc = {
+    run: (args: string[], opts: { cwd: string }) =>
+      appProcess.run(ChildProcess.make("git", args, { cwd: opts.cwd, extendEnv: true }), { maxOutputBytes: 10 * 1024 * 1024 }).pipe(
+        Effect.map((result) => ({
+          exitCode: result.exitCode,
+          text: () => result.stdout.toString("utf8"),
+          stdout: result.stdout,
+          stderr: result.stderr,
+          truncated: result.stdoutTruncated || result.stderrTruncated,
+        })),
+      ),
+  }
   const sessionSvc = yield* Session.Service
   const sessionShare = yield* SessionShare.Service
   const sessionPrompt = yield* SessionPrompt.Service

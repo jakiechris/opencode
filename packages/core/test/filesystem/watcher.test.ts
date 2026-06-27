@@ -7,7 +7,6 @@ import { Config } from "@opencode-ai/core/config"
 import { EventV2 } from "@opencode-ai/core/event"
 import { FSUtil } from "@opencode-ai/core/fs-util"
 import { Watcher } from "@opencode-ai/core/filesystem/watcher"
-import { Git } from "@opencode-ai/core/git"
 import { Location } from "@opencode-ai/core/location"
 import { AbsolutePath } from "@opencode-ai/core/schema"
 import { location } from "../fixture/location"
@@ -42,7 +41,6 @@ function provide(directory: string, vcs?: Location.Interface["vcs"]) {
   return Effect.provide(
     Watcher.layer.pipe(
       Layer.provide(configLayer),
-      Layer.provide(Git.defaultLayer),
       Layer.provide(locationLayer),
       Layer.provide(flagsLayer),
     ),

@@ -6,7 +6,6 @@ import { eq } from "drizzle-orm"
 import { Effect, Fiber, Layer, Stream } from "effect"
 import { AbsolutePath } from "@opencode-ai/core/schema"
 import { FSUtil } from "@opencode-ai/core/fs-util"
-import { Git } from "@opencode-ai/core/git"
 import { Database } from "@opencode-ai/core/database/database"
 import { EventV2 } from "@opencode-ai/core/event"
 import { Project } from "@opencode-ai/core/project"
@@ -21,7 +20,6 @@ const copyLayer = ProjectCopy.layer.pipe(
   Layer.provide(ProjectDirectories.defaultLayer),
   Layer.provide(EventV2.defaultLayer),
   Layer.provide(FSUtil.defaultLayer),
-  Layer.provide(Git.defaultLayer),
 )
 const it = testEffect(
   Layer.mergeAll(copyLayer, Database.defaultLayer, EventV2.defaultLayer, ProjectDirectories.defaultLayer),
@@ -179,11 +177,7 @@ describe("ProjectCopy", () => {
         .remove({ projectID: input.projectID, directory: created.directory, force: false })
         .pipe(Effect.flip)
 
-      expect(error).toBeInstanceOf(Git.WorktreeError)
-      if (error instanceof Git.WorktreeError) {
-        expect(error.operation).toBe("remove")
-        expect(error.forceRequired).toBe(true)
-      }
+      expect(error).toBeInstanceOf(ProjectCopy.StrategyUnavailableError)
       expect(yield* stored(input.projectID)).toContainEqual({ directory: created.directory, strategy: "git_worktree" })
       expect(yield* Effect.promise(() => Bun.file(path.join(created.directory, "dirty.txt")).exists())).toBe(true)
 

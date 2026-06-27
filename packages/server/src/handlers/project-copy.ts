@@ -1,6 +1,5 @@
 import { Location } from "@opencode-ai/core/location"
 import { ProjectCopy } from "@opencode-ai/core/project/copy"
-import { Git } from "@opencode-ai/core/git"
 import { Effect } from "effect"
 import { HttpApiBuilder, HttpApiSchema } from "effect/unstable/httpapi"
 import { Api } from "../api"
@@ -45,10 +44,7 @@ function badRequest<A, R>(effect: Effect.Effect<A, ProjectCopy.Error, R>) {
       (error) =>
         new ProjectCopyError({
           name: "ProjectCopyError",
-          data: {
-            message: message(error),
-            forceRequired: error instanceof Git.WorktreeError ? error.forceRequired : undefined,
-          },
+          data: { message: message(error) },
         }),
     ),
   )

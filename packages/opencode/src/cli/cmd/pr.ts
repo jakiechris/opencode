@@ -1,7 +1,6 @@
 import { Effect } from "effect"
 import { UI } from "../ui"
 import { effectCmd, fail } from "../effect-cmd"
-import { Git } from "@/git"
 import { InstanceRef } from "@/effect/instance-ref"
 import { Process } from "@/util/process"
 
@@ -21,7 +20,6 @@ export const PrCommand = effectCmd({
       return yield* fail("Could not find git repository. Please run this command from a git repository.")
     }
 
-    const git = yield* Git.Service
     const worktree = ctx.worktree
 
     const prNumber = args.number
@@ -59,17 +57,23 @@ export const PrCommand = effectCmd({
         const forkName = prInfo.headRepository.name
         const remoteName = forkOwner
 
-        const remotes = (yield* git.run(["remote"], { cwd: worktree })).text().trim()
+        const remotes = (yield* Process.text(["git", "remote"], { cwd: worktree, nothrow: true })).trim()
         if (!remotes.split("\n").includes(remoteName)) {
-          yield* git.run(["remote", "add", remoteName, `https://github.com/${forkOwner}/${forkName}.git`], {
-            cwd: worktree,
-          })
+          yield* Effect.promise(() =>
+            Process.run(["git", "remote", "add", remoteName, `https://github.com/${forkOwner}/${forkName}.git`], {
+              cwd: worktree,
+              nothrow: true,
+            }),
+          )
           UI.println(`Added fork remote: ${remoteName}`)
         }
 
-        yield* git.run(["branch", `--set-upstream-to=${remoteName}/${prInfo.headRefName}`, localBranchName], {
-          cwd: worktree,
-        })
+        yield* Effect.promise(() =>
+            Process.run(["git", "branch", `--set-upstream-to=${remoteName}/${prInfo.headRefName}`, localBranchName], {
+              cwd: worktree,
+              nothrow: true,
+            }),
+          )
       }
 
       if (prInfo?.body) {

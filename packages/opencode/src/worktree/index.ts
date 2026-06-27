@@ -11,7 +11,6 @@ import type { ProjectV2 } from "@opencode-ai/core/project"
 import { Slug } from "@opencode-ai/core/util/slug"
 import { errorMessage } from "../util/error"
 import { GlobalBus } from "@/bus/global"
-import { Git } from "@/git"
 import { Effect, Layer, Path, Schema, Scope, Context } from "effect"
 import { ChildProcess } from "effect/unstable/process"
 import { NodePath } from "@effect/platform-node"
@@ -137,7 +136,6 @@ export const layer: Layer.Layer<
   | FSUtil.Service
   | Path.Path
   | AppProcess.Service
-  | Git.Service
   | Project.Service
   | InstanceStore.Service
   | Database.Service
@@ -149,7 +147,16 @@ export const layer: Layer.Layer<
     const pathSvc = yield* Path.Path
     const appProcess = yield* AppProcess.Service
     const { db } = yield* Database.Service
-    const gitSvc = yield* Git.Service
+    const gitSvc: { defaultBranch: (cwd: string) => Effect.Effect<{ name: string; ref: string } | undefined> } = {
+      defaultBranch: Effect.fnUntraced(function* (cwd: string) {
+        const head = yield* git(["symbolic-ref", `refs/remotes/origin/HEAD`], { cwd })
+        if (head.code === 0) {
+          const ref = head.text.replace(/^refs\/remotes\//, "").trim()
+          const name = ref.startsWith("origin/") ? ref.slice("origin/".length) : ""
+          if (name) return { name, ref } satisfies { name: string; ref: string }
+        }
+      }),
+    }
     const project = yield* Project.Service
     const store = yield* InstanceStore.Service
 
@@ -617,7 +624,6 @@ export const layer: Layer.Layer<
 )
 
 export const appLayer = layer.pipe(
-  Layer.provide(Git.defaultLayer),
   Layer.provide(AppProcess.defaultLayer),
   Layer.provide(Project.defaultLayer),
   Layer.provide(Database.defaultLayer),
@@ -631,7 +637,6 @@ export const node = LayerNode.make(layer, [
   FSUtil.node,
   path,
   AppProcess.node,
-  Git.node,
   Project.node,
   InstanceStore.node,
   Database.node,

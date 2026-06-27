@@ -5,7 +5,6 @@ import path from "path"
 import { Effect, Layer } from "effect"
 import { Config } from "@opencode-ai/core/config"
 import { FSUtil } from "@opencode-ai/core/fs-util"
-import { Git } from "@opencode-ai/core/git"
 import { Global } from "@opencode-ai/core/global"
 import { Location } from "@opencode-ai/core/location"
 import { Project } from "@opencode-ai/core/project"
@@ -179,7 +178,6 @@ function snapshotLayer(data: string, directory: string) {
     Layer.provide(location),
     Layer.provide(Config.locationLayer.pipe(Layer.provide(location))),
     Layer.provide(FSUtil.defaultLayer),
-    Layer.provide(Git.defaultLayer),
     Layer.provide(Global.layerWith({ data, config: path.join(data, "config") })),
   )
 }

@@ -3,7 +3,6 @@ import path from "path"
 import { Effect, Exit, Layer } from "effect"
 import { FSUtil } from "@opencode-ai/core/fs-util"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
-import { Git } from "../../src/git"
 import { Global } from "@opencode-ai/core/global"
 import { Storage } from "@/storage/storage"
 import { tmpdirScoped } from "../fixture/fixture"
@@ -57,7 +56,7 @@ function remappedFs(root: string) {
 // returns the outer testEffect's Storage (which uses the real FSUtil), not a new
 // one built on top of remappedFs.
 const remappedStorage = (root: string) =>
-  Layer.fresh(Storage.layer.pipe(Layer.provide(remappedFs(root)), Layer.provide(Git.defaultLayer)))
+  Layer.fresh(Storage.layer.pipe(Layer.provide(remappedFs(root))))
 
 describe("Storage", () => {
   it.live("round-trips JSON content", () =>

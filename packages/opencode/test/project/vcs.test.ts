@@ -13,8 +13,6 @@ import {
   tmpdirScoped,
 } from "../fixture/fixture"
 import { EventV2Bridge } from "../../src/event-v2-bridge"
-import { Watcher } from "@opencode-ai/core/filesystem/watcher"
-import { Git } from "../../src/git"
 import { Vcs } from "@/project/vcs"
 import { testEffect } from "../lib/effect"
 
@@ -25,16 +23,15 @@ import { testEffect } from "../lib/effect"
 const weird = process.platform === "win32" ? "space file.txt" : "tab\tfile.txt"
 
 const layer = Layer.mergeAll(
-  Vcs.layer.pipe(Layer.provideMerge(Git.defaultLayer), Layer.provideMerge(EventV2Bridge.defaultLayer)),
+  Vcs.layer.pipe(Layer.provideMerge(EventV2Bridge.defaultLayer)),
   CrossSpawnSpawner.defaultLayer,
   FSUtil.defaultLayer,
-)
+) 
 const it = testEffect(layer)
 const worktreeIt = testEffect(Layer.mergeAll(layer, testInstanceStoreLayer))
 
-const git = Effect.fn("VcsTest.git")(function* (cwd: string, args: string[]) {
-  const result = yield* Git.Service.use((git) => git.run(args, { cwd }))
-  if (result.exitCode !== 0) throw new Error(`git ${args.join(" ")} failed: ${result.stderr.toString("utf8")}`)
+const git = Effect.fn("VcsTest.git")(function* (_cwd: string, _args: string[]) {
+  throw new Error("Git module has been removed")
 })
 
 const write = Effect.fn("VcsTest.write")(function* (file: string, content: string) {
