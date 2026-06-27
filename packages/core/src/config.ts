@@ -62,9 +62,6 @@ export class Info extends Schema.Class<Info>("Config.Info")({
   agents: Schema.Record(Schema.String, ConfigAgent.Info).pipe(Schema.optional).annotate({
     description: "Named built-in agent overrides and custom agent definitions",
   }),
-  snapshots: Schema.Boolean.pipe(Schema.optional).annotate({
-    description: "Enable snapshots used for undo and revert behavior",
-  }),
   watcher: ConfigWatcher.Info.pipe(Schema.optional).annotate({
     description: "Filesystem watcher configuration",
   }),

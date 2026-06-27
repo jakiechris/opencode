@@ -42,7 +42,6 @@ import { SessionShare } from "@/share/session"
 import { ShareNext } from "@/share/share-next"
 import { Skill } from "@/skill"
 import { Discovery } from "@/skill/discovery"
-import { Snapshot } from "@/snapshot"
 import { Storage } from "@/storage/storage"
 import { ToolRegistry } from "@/tool/registry"
 import { Truncate } from "@/tool/truncate"
@@ -209,7 +208,6 @@ const app = LayerNode.group([
   Env.node,
   Ripgrep.node,
   Storage.node,
-  Snapshot.node,
   Plugin.node,
   ModelsDev.node,
   Provider.node,

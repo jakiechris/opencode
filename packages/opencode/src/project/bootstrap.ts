@@ -2,7 +2,6 @@ import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import { Plugin } from "../plugin"
 import { Format } from "../format"
 import { LSP } from "@/lsp/lsp"
-import { Snapshot } from "../snapshot"
 import * as Project from "./project"
 import * as Vcs from "./vcs"
 import { InstanceState } from "@/effect/instance-state"
@@ -26,7 +25,6 @@ export const layer = Layer.effect(
     const plugin = yield* Plugin.Service
     const project = yield* Project.Service
     const shareNext = yield* ShareNext.Service
-    const snapshot = yield* Snapshot.Service
     const vcs = yield* Vcs.Service
 
     const run = Effect.gen(function* () {
@@ -39,7 +37,7 @@ export const layer = Layer.effect(
       // Each service self-manages its own slow work via Effect.forkScoped against
       // its per-instance state scope. We just await materialization here.
       yield* Effect.forEach(
-        [lsp, shareNext, format, vcs, snapshot, project],
+        [lsp, shareNext, format, vcs, project],
         (s) => s.init().pipe(Effect.catchCause((cause) => Effect.logWarning("init failed", { cause }))),
         { concurrency: "unbounded", discard: true },
       ).pipe(Effect.withSpan("InstanceBootstrap.init"))
@@ -57,7 +55,6 @@ export const defaultLayer: Layer.Layer<Service> = layer.pipe(
     Plugin.defaultLayer,
     Project.defaultLayer,
     ShareNext.defaultLayer,
-    Snapshot.defaultLayer,
     Vcs.defaultLayer,
   ]),
 )
@@ -69,7 +66,6 @@ export const node = LayerNode.make(layer, [
   Plugin.node,
   Project.node,
   ShareNext.node,
-  Snapshot.node,
   Vcs.node,
 ])
 

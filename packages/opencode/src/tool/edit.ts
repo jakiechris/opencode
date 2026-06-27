@@ -14,7 +14,6 @@ import { Watcher } from "@opencode-ai/core/filesystem/watcher"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { Format } from "../format"
 import { InstanceState } from "@/effect/instance-state"
-import { Snapshot } from "@/snapshot"
 import { assertExternalDirectoryEffect } from "./external-directory"
 import { FSUtil } from "@opencode-ai/core/fs-util"
 import * as Bom from "@/util/bom"
@@ -178,7 +177,7 @@ export const EditTool = Tool.define(
             if (change.added) additions += change.count || 0
             if (change.removed) deletions += change.count || 0
           }
-          const filediff: Snapshot.FileDiff = {
+          const filediff: { file: string; patch: string; additions: number; deletions: number } = {
             file: filePath,
             patch: diff,
             additions,

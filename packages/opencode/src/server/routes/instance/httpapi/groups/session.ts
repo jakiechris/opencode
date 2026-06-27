@@ -10,7 +10,6 @@ import { SessionStatus } from "@/session/status"
 import { SessionSummary } from "@/session/summary"
 import { Todo } from "@/session/todo"
 import { MessageID, PartID, SessionID } from "@/session/schema"
-import { Snapshot } from "@/snapshot"
 import { Schema, Struct } from "effect"
 import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/unstable/httpapi"
 import { Authorization } from "../middleware/authorization"
@@ -168,7 +167,7 @@ export const SessionApi = HttpApi.make("session")
         HttpApiEndpoint.get("diff", SessionPaths.diff, {
           params: { sessionID: SessionID },
           query: DiffQuery,
-          success: described(Schema.Array(Snapshot.FileDiff), "Successfully retrieved diff"),
+          success: described(Schema.Array(Schema.Unknown), "Successfully retrieved diff"),
         }).annotateMerge(
           OpenApi.annotations({
             identifier: "session.diff",

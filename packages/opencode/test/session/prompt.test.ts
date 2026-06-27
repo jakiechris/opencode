@@ -43,7 +43,6 @@ import { SessionExecution } from "@opencode-ai/core/session/execution"
 import { Skill } from "../../src/skill"
 import { SystemPrompt } from "../../src/session/system"
 import { Shell } from "@opencode-ai/core/shell"
-import { Snapshot } from "../../src/snapshot"
 import { ToolRegistry } from "@/tool/registry"
 import { Truncate } from "@/tool/truncate"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
@@ -170,7 +169,6 @@ const blockingProcessor = Layer.succeed(
 function makePrompt(input?: { mcpInstructions?: MCP.ServerInstructions[]; processor?: "blocking" }) {
   const deps = Layer.mergeAll(
     Session.defaultLayer,
-    Snapshot.defaultLayer,
     LLM.defaultLayer,
     Env.defaultLayer,
     AgentSvc.defaultLayer,

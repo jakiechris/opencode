@@ -8,7 +8,6 @@ import { Agent } from "@/agent/agent"
 import { Config } from "@/config/config"
 import { Permission } from "@/permission"
 import { Plugin } from "@/plugin"
-import { Snapshot } from "@/snapshot"
 import { Session } from "./session"
 import { LLM } from "./llm"
 import { MessageV2 } from "./message-v2"
@@ -76,7 +75,6 @@ type ToolCall = {
 interface ProcessorContext extends Input {
   toolcalls: Record<string, ToolCall>
   shouldBreak: boolean
-  snapshot: string | undefined
   blocked: boolean
   needsCompaction: boolean
   currentText: SessionV1.TextPart | undefined
@@ -94,7 +92,6 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const session = yield* Session.Service
     const config = yield* Config.Service
-    const snapshot = yield* Snapshot.Service
     const agents = yield* Agent.Service
     const llm = yield* LLM.Service
     const permission = yield* Permission.Service
@@ -108,17 +105,12 @@ export const layer = Layer.effect(
     const database = yield* Database.Service
 
     const create = Effect.fn("SessionProcessor.create")(function* (input: Input) {
-      // Pre-capture snapshot before the LLM stream starts. The AI SDK
-      // may execute tools internally before emitting start-step events,
-      // so capturing inside the event handler can be too late.
-      const initialSnapshot = yield* snapshot.track()
       const ctx: ProcessorContext = {
         assistantMessage: input.assistantMessage,
         sessionID: input.sessionID,
         model: input.model,
         toolcalls: {},
         shouldBreak: false,
-        snapshot: initialSnapshot,
         blocked: false,
         needsCompaction: false,
         currentText: undefined,
@@ -153,7 +145,7 @@ export const layer = Layer.effect(
             providerID: ProviderV2.ID.make(ctx.model.providerID),
             variant: ModelV2.VariantID.make(input.assistantMessage.variant ?? "default"),
           },
-          snapshot: ctx.snapshot,
+          snapshot: undefined,
           timestamp: DateTime.makeUnsafe(Date.now()),
         })
         return ctx.v2AssistantMessageID
@@ -674,7 +666,6 @@ export const layer = Layer.effect(
             throw new Error(value.message)
 
           case "step-start":
-            if (!ctx.snapshot) ctx.snapshot = yield* snapshot.track()
             if (!ctx.assistantMessage.summary) {
               // TODO(v2): Temporary dual-write while migrating session messages to v2 events.
               if (mirrorAssistant) {
@@ -685,13 +676,12 @@ export const layer = Layer.effect(
               id: PartID.ascending(),
               messageID: ctx.assistantMessage.id,
               sessionID: ctx.sessionID,
-              snapshot: ctx.snapshot,
+snapshot: undefined,
               type: "step-start",
             })
             return
 
           case "step-finish": {
-            const completedSnapshot = yield* snapshot.track()
             yield* Effect.forEach(Object.keys(ctx.reasoningMap), finishReasoning)
             const usage = Session.getUsage({
               model: ctx.model,
@@ -707,7 +697,6 @@ export const layer = Layer.effect(
                   finish: value.reason,
                   cost: usage.cost,
                   tokens: usage.tokens,
-                  snapshot: completedSnapshot,
                   timestamp: DateTime.makeUnsafe(Date.now()),
                 })
                 ctx.v2AssistantMessageID = undefined
@@ -719,7 +708,6 @@ export const layer = Layer.effect(
             yield* session.updatePart({
               id: PartID.ascending(),
               reason: value.reason,
-              snapshot: completedSnapshot,
               messageID: ctx.assistantMessage.id,
               sessionID: ctx.assistantMessage.sessionID,
               type: "step-finish",
@@ -727,20 +715,6 @@ export const layer = Layer.effect(
               cost: usage.cost,
             })
             yield* session.updateMessage(ctx.assistantMessage)
-            if (ctx.snapshot) {
-              const patch = yield* snapshot.patch(ctx.snapshot)
-              if (patch.files.length) {
-                yield* session.updatePart({
-                  id: PartID.ascending(),
-                  messageID: ctx.assistantMessage.id,
-                  sessionID: ctx.sessionID,
-                  type: "patch",
-                  hash: patch.hash,
-                  files: patch.files,
-                })
-              }
-              ctx.snapshot = undefined
-            }
             yield* summary
               .summarize({
                 sessionID: ctx.sessionID,
@@ -844,21 +818,6 @@ export const layer = Layer.effect(
       })
 
       const cleanup = Effect.fn("SessionProcessor.cleanup")(function* () {
-        if (ctx.snapshot) {
-          const patch = yield* snapshot.patch(ctx.snapshot)
-          if (patch.files.length) {
-            yield* session.updatePart({
-              id: PartID.ascending(),
-              messageID: ctx.assistantMessage.id,
-              sessionID: ctx.sessionID,
-              type: "patch",
-              hash: patch.hash,
-              files: patch.files,
-            })
-          }
-          ctx.snapshot = undefined
-        }
-
         if (ctx.currentText) {
           const end = Date.now()
           ctx.currentText.time = { start: ctx.currentText.time?.start ?? end, end }
@@ -1050,7 +1009,6 @@ export const layer = Layer.effect(
 export const defaultLayer = Layer.suspend(() =>
   layer.pipe(
     Layer.provide(Session.defaultLayer),
-    Layer.provide(Snapshot.defaultLayer),
     Layer.provide(Agent.defaultLayer),
     Layer.provide(LLM.defaultLayer),
     Layer.provide(Permission.defaultLayer),
@@ -1068,7 +1026,6 @@ export const defaultLayer = Layer.suspend(() =>
 export const node = LayerNode.make(layer, [
   Session.node,
   Config.node,
-  Snapshot.node,
   Agent.node,
   LLM.node,
   Permission.node,

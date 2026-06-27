@@ -21,7 +21,6 @@ import { SessionInput } from "@opencode-ai/core/session/input"
 import { SessionStore } from "@opencode-ai/core/session/store"
 import { SessionInputTable, SessionMessageTable, SessionTable } from "@opencode-ai/core/session/sql"
 import { testEffect } from "./lib/effect"
-import { Snapshot } from "@opencode-ai/core/snapshot"
 
 const it = testEffect(Layer.mergeAll(Database.defaultLayer, EventV2.defaultLayer, SessionProjector.defaultLayer))
 const sessionID = SessionV2.ID.make("ses_projector_test")
@@ -70,7 +69,7 @@ describe("SessionProjector", () => {
       yield* events.publish(SessionEvent.RevertEvent.Staged, {
         sessionID,
         timestamp: DateTime.makeUnsafe(1),
-        revert: { messageID: boundary, snapshot: Snapshot.ID.make("tree"), diff: "patch", files: [] },
+        revert: { messageID: boundary, snapshot: "tree", diff: "patch", files: [] },
       })
       expect((yield* db.select({ revert: SessionTable.revert }).from(SessionTable).get())?.revert).toMatchObject({
         messageID: boundary,

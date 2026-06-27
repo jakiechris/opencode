@@ -6,7 +6,6 @@ import { Effect, Layer } from "effect"
 import { HttpClientResponse } from "effect/unstable/http"
 import { FSUtil } from "@opencode-ai/core/fs-util"
 import { Database } from "@opencode-ai/core/database/database"
-import { Snapshot } from "@/snapshot"
 import { InstanceBootstrap } from "@/project/bootstrap-service"
 import { InstanceStore } from "@/project/instance-store"
 import { resetDatabase } from "../fixture/db"
@@ -22,7 +21,7 @@ afterEach(async () => {
 const noopBootstrap = Layer.succeed(InstanceBootstrap.Service, InstanceBootstrap.Service.of({ run: Effect.void }))
 const testInstanceStore = InstanceStore.defaultLayer.pipe(Layer.provide(noopBootstrap))
 const it = testEffect(
-  Layer.mergeAll(FSUtil.defaultLayer, Database.defaultLayer, Snapshot.defaultLayer, testInstanceStore, httpApiLayer),
+  Layer.mergeAll(FSUtil.defaultLayer, Database.defaultLayer, testInstanceStore, httpApiLayer),
 )
 
 function request(directory: string, url: string, init: RequestInit = {}) {

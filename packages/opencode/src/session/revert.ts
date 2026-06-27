@@ -2,7 +2,6 @@ import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import { Effect, Layer, Context, Schema } from "effect"
 import { SessionV1 } from "@opencode-ai/core/v1/session"
 import { EventV2Bridge } from "@/event-v2-bridge"
-import { Snapshot } from "../snapshot"
 import { Storage } from "@/storage/storage"
 import { Session } from "./session"
 import { MessageV2 } from "./message-v2"
@@ -29,7 +28,6 @@ export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const sessions = yield* Session.Service
-    const snap = yield* Snapshot.Service
     const storage = yield* Storage.Service
     const events = yield* EventV2Bridge.Service
     const summary = yield* SessionSummary.Service
@@ -42,7 +40,7 @@ export const layer = Layer.effect(
       const session = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
 
       let rev: Session.Info["revert"]
-      const patches: Snapshot.Patch[] = []
+      const patches: { file: string; patch: string; additions: number; deletions: number }[] = []
       for (const msg of all) {
         if (msg.info.role === "user") lastUser = msg.info
         const remaining = []
@@ -67,21 +65,15 @@ export const layer = Layer.effect(
 
       if (!rev) return session
 
-      rev.snapshot = session.revert?.snapshot ?? (yield* snap.track())
-      if (session.revert?.snapshot) yield* snap.restore(session.revert.snapshot)
-      yield* snap.revert(patches)
-      if (rev.snapshot) rev.diff = yield* snap.diff(rev.snapshot)
-      const range = all.filter((msg) => msg.info.id >= rev.messageID)
-      const diffs = yield* summary.computeDiff({ messages: range })
-      yield* storage.write(["session_diff", input.sessionID], diffs).pipe(Effect.ignore)
-      yield* events.publish(Session.Event.Diff, { sessionID: input.sessionID, diff: diffs })
+      rev.snapshot = session.revert?.snapshot
+      yield* events.publish(Session.Event.Diff, { sessionID: input.sessionID, diff: [] })
       yield* sessions.setRevert({
         sessionID: input.sessionID,
         revert: rev,
         summary: {
-          additions: diffs.reduce((sum, x) => sum + x.additions, 0),
-          deletions: diffs.reduce((sum, x) => sum + x.deletions, 0),
-          files: diffs.length,
+          additions: 0,
+          deletions: 0,
+          files: 0,
         },
       })
       return yield* sessions.get(input.sessionID).pipe(Effect.orDie)
@@ -90,9 +82,6 @@ export const layer = Layer.effect(
     const unrevert = Effect.fn("SessionRevert.unrevert")(function* (input: { sessionID: SessionID }) {
       yield* Effect.logInfo("unreverting", { sessionID: input.sessionID })
       yield* state.assertNotBusy(input.sessionID)
-      const session = yield* sessions.get(input.sessionID).pipe(Effect.orDie)
-      if (!session.revert) return session
-      if (session.revert.snapshot) yield* snap.restore(session.revert.snapshot)
       yield* sessions.clearRevert(input.sessionID)
       return yield* sessions.get(input.sessionID).pipe(Effect.orDie)
     })
@@ -141,7 +130,6 @@ export const defaultLayer = Layer.suspend(() =>
   layer.pipe(
     Layer.provide(SessionRunState.defaultLayer),
     Layer.provide(Session.defaultLayer),
-    Layer.provide(Snapshot.defaultLayer),
     Layer.provide(Storage.defaultLayer),
     Layer.provide(EventV2Bridge.defaultLayer),
     Layer.provide(SessionSummary.defaultLayer),
@@ -150,7 +138,6 @@ export const defaultLayer = Layer.suspend(() =>
 
 export const node = LayerNode.make(layer, [
   Session.node,
-  Snapshot.node,
   Storage.node,
   EventV2Bridge.node,
   SessionSummary.node,

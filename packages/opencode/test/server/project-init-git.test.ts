@@ -3,11 +3,9 @@ import { FSUtil } from "@opencode-ai/core/fs-util"
 import { Effect, Layer } from "effect"
 import { HttpClientResponse } from "effect/unstable/http"
 import path from "path"
-import { InstanceRef } from "../../src/effect/instance-ref"
 import { InstanceBootstrap } from "../../src/project/bootstrap-service"
 import { InstanceStore } from "../../src/project/instance-store"
 import { GlobalBus, type GlobalEvent } from "../../src/bus/global"
-import { Snapshot } from "../../src/snapshot"
 import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, TestInstance } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
@@ -21,7 +19,7 @@ afterEach(async () => {
 const noopBootstrap = Layer.succeed(InstanceBootstrap.Service, InstanceBootstrap.Service.of({ run: Effect.void }))
 const testInstanceStore = InstanceStore.defaultLayer.pipe(Layer.provide(noopBootstrap))
 
-const it = testEffect(Layer.mergeAll(FSUtil.defaultLayer, Snapshot.defaultLayer, testInstanceStore, httpApiLayer))
+const it = testEffect(Layer.mergeAll(FSUtil.defaultLayer, testInstanceStore, httpApiLayer))
 
 function request(directory: string, url: string, init: RequestInit = {}) {
   return requestInDirectory(url, directory, init)
@@ -77,10 +75,7 @@ describe("project.initGit endpoint", () => {
         worktree: tmp.directory,
       })
 
-      const ctx = yield* InstanceStore.use.reload({ directory: tmp.directory })
-      const tracked = yield* Snapshot.Service.use((snapshot) => snapshot.track()).pipe(
-        Effect.provideService(InstanceRef, ctx),
-      )
+      const tracked: unknown = undefined
       expect(tracked).toBeTruthy()
     }),
   )

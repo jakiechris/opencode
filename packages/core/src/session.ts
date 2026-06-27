@@ -29,7 +29,6 @@ import { SessionExecution } from "./session/execution"
 import { MessageDecodeError } from "./session/error"
 import { SessionEvent } from "./session/event"
 import { SessionInput } from "./session/input"
-import { Snapshot } from "./snapshot"
 import { SessionRevert } from "./session/revert"
 import { Revert } from "@opencode-ai/schema/revert"
 
@@ -162,8 +161,8 @@ export interface Interface {
       sessionID: SessionSchema.ID
       messageID: SessionMessage.ID
       files?: boolean
-    }) => Effect.Effect<Revert.State, NotFoundError | MessageNotFoundError | Snapshot.Error>
-    readonly clear: (sessionID: SessionSchema.ID) => Effect.Effect<void, NotFoundError | Snapshot.Error>
+    }) => Effect.Effect<Revert.State, NotFoundError | MessageNotFoundError>
+    readonly clear: (sessionID: SessionSchema.ID) => Effect.Effect<void, NotFoundError>
     readonly commit: (sessionID: SessionSchema.ID) => Effect.Effect<void, NotFoundError>
   }
 }

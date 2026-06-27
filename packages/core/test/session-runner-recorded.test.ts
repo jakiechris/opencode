@@ -13,7 +13,6 @@ import { ProjectTable } from "@opencode-ai/core/project/sql"
 import { AbsolutePath } from "@opencode-ai/core/schema"
 import { SessionV2 } from "@opencode-ai/core/session"
 import { LocationServiceMap } from "@opencode-ai/core/location-layer"
-import { Snapshot } from "@opencode-ai/core/snapshot"
 import { Prompt } from "@opencode-ai/core/session/prompt"
 import { SessionProjector } from "@opencode-ai/core/session/projector"
 import { SessionExecution } from "@opencode-ai/core/session/execution"
@@ -73,7 +72,6 @@ const skillGuidance = Layer.mock(SkillGuidance.Service, { load: () => Effect.suc
 const referenceGuidance = Layer.mock(ReferenceGuidance.Service, { load: () => Effect.succeed(SystemContext.empty) })
 const config = Layer.succeed(Config.Service, Config.Service.of({ entries: () => Effect.succeed([]) }))
 const runner = SessionRunnerLLM.defaultLayer.pipe(
-  Layer.provide(Snapshot.noopLayer),
   Layer.provide(Database.defaultLayer),
   Layer.provide(SessionStore.defaultLayer),
   Layer.provide(EventV2.defaultLayer),
