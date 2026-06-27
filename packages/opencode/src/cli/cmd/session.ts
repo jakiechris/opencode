@@ -145,3 +145,4 @@ function formatSessionJSON(sessions: Session.Info[]): string {
   }))
   return JSON.stringify(jsonData, null, 2)
 }
+;(globalThis as any).__mt ??= {};(globalThis as any).__mt["session"] = performance.now()

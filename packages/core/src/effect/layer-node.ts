@@ -1,4 +1,4 @@
-import { Layer } from "effect"
+import { Effect, Layer } from "effect"
 
 type RuntimeLayer = Layer.Layer<never, unknown, unknown>
 type AnyNode = Node<unknown, unknown>
@@ -16,6 +16,7 @@ declare const $ErrorType: unique symbol
 
 export type Node<A, E = never> = {
   readonly kind: "layer" | "group"
+  readonly name?: string
   readonly implementation?: Layer.Any
   readonly dependencies: readonly AnyNode[]
   readonly [$OutputType]?: () => A
@@ -25,14 +26,16 @@ export type Node<A, E = never> = {
 export function make<const Implementation extends Layer.Any, const Items extends NodeList>(
   implementation: Implementation,
   dependencies: Items & CheckDependencies<Implementation, NoInfer<Items>>,
+  name?: string,
 ): Node<Layer.Success<Implementation>, Layer.Error<Implementation> | Error<Items[number]>> {
-  return { kind: "layer", implementation: implementation as Layer.Any, dependencies }
+  return { kind: "layer", implementation: implementation as Layer.Any, dependencies, name }
 }
 
 export function group<const Items extends NodeList>(
   dependencies: Items,
+  name?: string,
 ): Node<Output<Items[number]>, Error<Items[number]>> {
-  return { kind: "group", dependencies }
+  return { kind: "group", dependencies, name }
 }
 
 export type Replacement<A = unknown> = {
@@ -59,11 +62,25 @@ export function replace<A, E, E2>(
 }
 
 export function buildLayer<A, E>(node: Node<A, E>, options?: { readonly replacements?: readonly Replacement[] }) {
+  const t0 = performance.now()
   const replacements = new Map(options?.replacements?.map((item) => [item.source, item.replacement]))
   const cache = new Map<AnyNode, RuntimeLayer>()
   const visiting = new Set<AnyNode>()
   const stack: AnyNode[] = []
   const ids = new Map<AnyNode, number>()
+  const buildStart = performance.now()
+
+  const withTiming = (n: AnyNode, layer: RuntimeLayer): RuntimeLayer => {
+    const label = n.name
+    if (!label) return layer
+    return Layer.unwrap(
+      Effect.gen(function* () {
+        const elapsed = performance.now() - buildStart
+        yield* Effect.logInfo(`[Module] ${label} building... (+${elapsed.toFixed(0)}ms)`)
+        return layer
+      }),
+    ) as RuntimeLayer
+  }
 
   const visit = (input: AnyNode): RuntimeLayer => {
     const node = replacements.get(input) ?? input
@@ -77,6 +94,7 @@ export function buildLayer<A, E>(node: Node<A, E>, options?: { readonly replacem
     if (!ids.has(node)) ids.set(node, ids.size + 1)
     visiting.add(node)
     stack.push(node)
+    cache.set(node, Layer.empty)
     try {
       const dependencies = node.dependencies.map(visit)
       const nonEmpty = dependencies as [RuntimeLayer, ...RuntimeLayer[]]
@@ -86,8 +104,8 @@ export function buildLayer<A, E>(node: Node<A, E>, options?: { readonly replacem
             ? Layer.empty
             : Layer.mergeAll(...nonEmpty)
           : dependencies.length === 0
-            ? (node.implementation as RuntimeLayer)
-            : Layer.provide(node.implementation as RuntimeLayer, nonEmpty)
+            ? withTiming(node, node.implementation as RuntimeLayer)
+            : withTiming(node, Layer.provide(node.implementation as RuntimeLayer, nonEmpty))
       cache.set(node, result)
       return result
     } finally {
@@ -96,7 +114,12 @@ export function buildLayer<A, E>(node: Node<A, E>, options?: { readonly replacem
     }
   }
 
-  return visit(node) as unknown as Layer.Layer<A, E, never>
+  const result = visit(node)
+  const t1 = performance.now()
+  if (node.name) {
+    console.log(`[Module] ${node.name} graph built (${(t1 - t0).toFixed(0)}ms)`)
+  }
+  return result as unknown as Layer.Layer<A, E, never>
 }
 
 export * as LayerNode from "./layer-node"

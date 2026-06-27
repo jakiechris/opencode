@@ -836,3 +836,4 @@ export const McpDebugCommand = effectCmd({
     })
   }),
 })
+;(globalThis as any).__mt ??= {};(globalThis as any).__mt["mcp"] = performance.now()

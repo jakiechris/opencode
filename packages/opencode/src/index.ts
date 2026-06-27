@@ -12,7 +12,6 @@ import { UI } from "./cli/ui"
 import { InstallationVersion } from "@opencode-ai/core/installation/version"
 import { FormatError } from "./cli/error"
 import { ServeCommand } from "./cli/cmd/serve"
-import { DebugCommand } from "./cli/cmd/debug"
 import { StatsCommand } from "./cli/cmd/stats"
 import { McpCommand } from "./cli/cmd/mcp"
 import { GithubCommand } from "./cli/cmd/github"
@@ -30,6 +29,8 @@ import { errorMessage } from "./util/error"
 import { PluginCommand } from "./cli/cmd/plug"
 import { Heap } from "./cli/heap"
 
+const t = performance.now()
+;(globalThis as any).__t_index = t
 const args = hideBin(process.argv)
 
 function show(out: string) {
@@ -70,7 +71,9 @@ const cli = yargs(args)
       process.env.OPENCODE_PURE = "1"
     }
 
+    const t_heap = performance.now()
     Heap.start()
+    ;(globalThis as any).__t_heap = performance.now() - t_heap
 
     process.env.AGENT = "1"
     process.env.OPENCODE = "1"
@@ -84,7 +87,6 @@ const cli = yargs(args)
   .command(AttachCommand)
   .command(RunCommand)
   .command(GenerateCommand)
-  .command(DebugCommand)
   .command(ConsoleCommand)
   .command(ProvidersCommand)
   .command(AgentCommand)
@@ -104,7 +106,7 @@ const cli = yargs(args)
   .fail((msg, err) => {
     if (
       msg?.startsWith("Unknown argument") ||
-      msg?.startsWith("Not enough non-option arguments") ||
+      msg?.startsWith("Not enough non-optional arguments") ||
       msg?.startsWith("Invalid values:")
     ) {
       if (err) throw err
@@ -114,6 +116,8 @@ const cli = yargs(args)
     process.exit(1)
   })
   .strict()
+
+;(globalThis as any).__t_index_end = performance.now()
 
 try {
   if (args.includes("-h") || args.includes("--help")) {

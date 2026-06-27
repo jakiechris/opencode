@@ -290,3 +290,4 @@ const run = Effect.fn("Cli.export.body")(function* (args: { sessionID?: string; 
     process.stdout.write(EOL)
   }).pipe(Effect.catchCause(() => fail(`Session not found: ${sessionID!}`)))
 })
+;(globalThis as any).__mt ??= {};(globalThis as any).__mt["export"] = performance.now()

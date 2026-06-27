@@ -391,3 +391,4 @@ function formatNumber(num: number): string {
   }
   return num.toString()
 }
+;(globalThis as any).__mt ??= {};(globalThis as any).__mt["stats"] = performance.now()

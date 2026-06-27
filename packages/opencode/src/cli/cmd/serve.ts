@@ -11,12 +11,19 @@ export const ServeCommand = effectCmd({
   // need for an ambient project InstanceContext at startup.
   instance: false,
   handler: Effect.fn("Cli.serve")(function* (args) {
+    const t0 = performance.now()
     const { Server } = yield* Effect.promise(() => import("../../server/server"))
+    const t1 = performance.now()
     if (!Flag.OPENCODE_SERVER_PASSWORD) {
       console.log("Warning: OPENCODE_SERVER_PASSWORD is not set; server is unsecured.")
     }
     const opts = yield* resolveNetworkOptions(args)
+    const t2 = performance.now()
     const server = yield* Effect.promise(() => Server.listen(opts))
+    const t3 = performance.now()
+    console.log(
+      `[Timing] import server: ${(t1 - t0).toFixed(0)}ms, resolve opts: ${(t2 - t1).toFixed(0)}ms, listen: ${(t3 - t2).toFixed(0)}ms`,
+    )
     console.log(`opencode server listening on http://${server.hostname}:${server.port}`)
 
     yield* Effect.never

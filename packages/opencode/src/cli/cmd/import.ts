@@ -222,3 +222,4 @@ const runImport = Effect.fn("Cli.import.body")(function* (file: string, ctx: Ins
   process.stdout.write(`Imported session: ${exportData.info.id}`)
   process.stdout.write(EOL)
 })
+;(globalThis as any).__mt ??= {};(globalThis as any).__mt["import"] = performance.now()

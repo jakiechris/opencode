@@ -532,3 +532,4 @@ export const ProvidersLogoutCommand = effectCmd({
     yield* Prompt.outro("Logout successful")
   }),
 })
+;(globalThis as any).__mt ??= {};(globalThis as any).__mt["providers"] = performance.now()

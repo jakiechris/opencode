@@ -60,3 +60,4 @@ export const DbCommand = effectCmd({
   },
   handler: Effect.fn("Cli.db")(function* () {}),
 })
+;(globalThis as any).__mt ??= {};(globalThis as any).__mt["db"] = performance.now()

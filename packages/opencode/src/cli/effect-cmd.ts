@@ -73,11 +73,30 @@ export const effectCmd = <Args, A>(opts: EffectCmdOpts<Args, A>) =>
     describe: opts.describe,
     builder: opts.builder as never,
     async handler(rawArgs) {
+      const t0 = performance.now()
+      const t_index = (globalThis as any).__t_index ?? 0
+      const t_index_end = (globalThis as any).__t_index_end ?? t0
+      const t_heap = (globalThis as any).__t_heap ?? 0
+      const mt = (globalThis as any).__mt ?? {}
       const { AppRuntime } = await import("@/effect/app-runtime")
+      const t1 = performance.now()
       // yargs typing wraps Args in ArgumentsCamelCase<WithDoubleDash<...>>; cast at the boundary.
       const args = rawArgs as unknown as WithDoubleDash<Args>
       const useInstance = typeof opts.instance === "function" ? opts.instance(args) : opts.instance !== false
       if (!useInstance) {
+        const cmdEvals = Object.entries(mt)
+          .filter(([_, v]) => (v as number) > 0 && (v as number) < t0)
+          .sort(([, a], [, b]) => (a as number) - (b as number))
+          .map(([k, v]) => `${k}=+${(v as number).toFixed(0)}`)
+          .join(" ")
+        console.log(
+          `[Timing] imports+eval: ${t_index.toFixed(0)}ms` +
+          (cmdEvals ? ` (${cmdEvals})` : "") +
+          `, yargs-setup: ${(t_index_end - t_index).toFixed(0)}ms,` +
+          ` parse: ${(t0 - t_index_end - t_heap).toFixed(0)}ms,` +
+          ` heap-start: ${t_heap.toFixed(0)}ms,` +
+          ` app-runtime: ${(t1 - t0).toFixed(0)}ms`,
+        )
         await AppRuntime.runPromise(opts.handler(args))
         return
       }
@@ -94,3 +113,4 @@ export const effectCmd = <Args, A>(opts: EffectCmdOpts<Args, A>) =>
       }
     },
   })
+;(globalThis as any).__mt ??= {};(globalThis as any).__mt["effect-cmd"] = performance.now()

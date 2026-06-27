@@ -122,7 +122,9 @@ function startWithPortFallback(opts: ListenOptions) {
 
 function startListener(opts: ListenOptions, port: number) {
   const scope = Scope.makeUnsafe()
+  const buildStart = performance.now()
   return Layer.buildWithMemoMap(listenerLayer(opts, port), Layer.makeMemoMapUnsafe(), scope).pipe(
+    Effect.tap(() => Effect.logInfo(`[Server] All modules built (${(performance.now() - buildStart).toFixed(0)}ms)`)),
     Effect.provide(HttpApiApp.context),
     Effect.onError(() => Scope.close(scope, Exit.void).pipe(Effect.ignore)),
     Effect.map(

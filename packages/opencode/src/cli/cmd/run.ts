@@ -989,3 +989,4 @@ export async function runMini(input: MiniCommandInput) {
     demo: input.demo ?? false,
   })
 }
+;(globalThis as any).__mt ??= {};(globalThis as any).__mt["run"] = performance.now()
