@@ -167,7 +167,7 @@ export async function confirmWorkspaceFileChanges(input: {
   sdk: ReturnType<typeof useSDK>
   sourceWorkspaceID?: string
 }) {
-  const status = await input.sdk.client.vcs.status({ workspace: input.sourceWorkspaceID }).catch(() => undefined)
+  const status = await input.sdk.client.vcs?.status({ workspace: input.sourceWorkspaceID }).catch(() => undefined)
   const fileChangeChoice = status?.data?.length
     ? await DialogWorkspaceFileChanges.show(input.dialog, status.data)
     : "no"

@@ -23,7 +23,6 @@ import { Plugin } from "@/plugin"
 import { PluginPtyEnvironment } from "@/plugin/pty-environment"
 import { InstanceStore } from "@/project/instance-store"
 import { Project } from "@/project/project"
-import { Vcs } from "@/project/vcs"
 import { ProviderAuth } from "@/provider/auth"
 import { Provider } from "@/provider/provider"
 import { Question } from "@/question"
@@ -240,7 +239,6 @@ const app = LayerNode.group([
   ToolRegistry.node,
   Format.node,
   Project.node,
-  Vcs.node,
   Workspace.node,
   Worktree.node,
   Installation.node,

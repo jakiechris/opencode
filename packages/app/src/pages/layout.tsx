@@ -1535,7 +1535,7 @@ export default function LegacyLayout(props: ParentProps) {
 
     onMount(() => {
       serverSDK()
-        .client.vcs.status({ directory: props.directory })
+        .client.vcs?.status({ directory: props.directory })
         .then((x) => {
           const files = x.data ?? []
           const dirty = files.length > 0
@@ -1603,7 +1603,7 @@ export default function LegacyLayout(props: ParentProps) {
 
     onMount(() => {
       serverSDK()
-        .client.vcs.status({ directory: props.directory })
+        .client.vcs?.status({ directory: props.directory })
         .then((x) => {
           const files = x.data ?? []
           const dirty = files.length > 0

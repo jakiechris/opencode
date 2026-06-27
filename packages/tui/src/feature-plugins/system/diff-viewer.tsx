@@ -122,11 +122,11 @@ function DiffViewer(props: { api: TuiPluginApi }) {
       return normalizeDiffs(result.data ?? [])
     }
 
-    const result = await props.api.client.vcs.diff(
+    const result = await props.api.client.vcs?.diff(
       { directory: input.directory, mode: input.mode, context: VCS_DIFF_CONTEXT_LINES },
       { throwOnError: true },
     )
-    return normalizeDiffs(result.data ?? [])
+    return normalizeDiffs(result?.data ?? [])
   })
   const files = createMemo(() => diff() ?? [])
   const [focus, setFocus] = createSignal<DiffViewerFocus>("patches")

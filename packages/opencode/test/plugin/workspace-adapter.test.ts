@@ -18,7 +18,6 @@ import { Plugin } from "../../src/plugin/index"
 import { InstanceBootstrap } from "../../src/project/bootstrap-service"
 import { InstanceStore } from "../../src/project/instance-store"
 import { Project } from "../../src/project/project"
-import { Vcs } from "../../src/project/vcs"
 import { InstanceState } from "../../src/effect/instance-state"
 import { Session } from "../../src/session/session"
 import { SessionPrompt } from "../../src/session/prompt"
@@ -48,7 +47,6 @@ const workspaceLayer = Workspace.layer.pipe(
   Layer.provide(Session.defaultLayer),
   Layer.provide(SessionPrompt.defaultLayer),
   Layer.provide(Project.defaultLayer),
-  Layer.provide(Vcs.defaultLayer),
   Layer.provide(FetchHttpClient.layer),
   Layer.provide(Database.defaultLayer),
   Layer.provide(EventV2Bridge.defaultLayer),

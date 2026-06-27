@@ -16,7 +16,9 @@ import {
   SessionListQuery as ExperimentalSessionListQuery,
   ToolListQuery,
 } from "../../src/server/routes/instance/httpapi/groups/experimental"
-import { InstancePaths, VcsDiffQuery } from "../../src/server/routes/instance/httpapi/groups/instance"
+import {
+  InstancePaths,
+} from "../../src/server/routes/instance/httpapi/groups/instance"
 import { WorkspacePaths } from "../../src/server/routes/instance/httpapi/groups/workspace"
 import {
   ListQuery as SessionListQuery,
@@ -53,7 +55,6 @@ const openApiDriftRoutes = [
   { method: "get", path: FilePaths.list, query: FileQuery },
   { method: "get", path: ExperimentalPaths.session, query: ExperimentalSessionListQuery },
   { method: "get", path: ExperimentalPaths.tool, query: ToolListQuery },
-  { method: "get", path: InstancePaths.vcsDiff, query: VcsDiffQuery },
   { method: "get", path: "/api/session/:sessionID/message", query: SessionMessagesQuery },
 ] satisfies Array<{ method: Method; path: string; query: QuerySchema }>
 
@@ -317,14 +318,4 @@ describe("httpapi query schema drift", () => {
     ),
   )
 
-  it.live(
-    "vcs diff accepts directory and workspace",
-    withTmp({ config: { formatter: false, lsp: false } }, (tmp) =>
-      Effect.gen(function* () {
-        const url = `/vcs/diff?mode=working&${routingParams(tmp.path)}`
-        const response = yield* request(url)
-        expectNotSchemaRejection(response.status, url)
-      }),
-    ),
-  )
 })

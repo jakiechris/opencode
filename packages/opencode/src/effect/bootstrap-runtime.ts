@@ -4,7 +4,6 @@ import { Plugin } from "@/plugin"
 import { LSP } from "@/lsp/lsp"
 import { Format } from "@/format"
 import { ShareNext } from "@/share/share-next"
-import { Vcs } from "@/project/vcs"
 import { Config } from "@/config/config"
 import * as Observability from "@opencode-ai/core/observability"
 import { memoMap } from "@opencode-ai/core/effect/memo-map"
@@ -15,7 +14,6 @@ export const BootstrapLayer = Layer.mergeAll(
   ShareNext.defaultLayer,
   Format.defaultLayer,
   LSP.defaultLayer,
-  Vcs.defaultLayer,
 ).pipe(Layer.provide(Observability.layer))
 
 export const BootstrapRuntime = ManagedRuntime.make(BootstrapLayer, { memoMap })

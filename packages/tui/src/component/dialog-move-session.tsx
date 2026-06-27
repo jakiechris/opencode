@@ -233,7 +233,7 @@ export function DialogMoveSession(props: DialogMoveSessionProps) {
       setRemoving(undefined)
       setWorking(false)
       if ("data" in result.error && result.error.data.forceRequired) {
-        const status = await sdk.client.vcs.status({ directory: selected.directory }).catch(() => undefined)
+        const status = await sdk.client.vcs?.status({ directory: selected.directory }).catch(() => undefined)
         const choice = await DialogWorkspaceFileChanges.show(dialog, status?.data ?? [], {
           title: "Delete working copy?",
           message: "This working copy has file changes. Do you want to delete it anyway?",
