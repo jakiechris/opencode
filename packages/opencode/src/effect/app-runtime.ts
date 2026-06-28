@@ -29,13 +29,11 @@ import { SessionSummary } from "@/session/summary"
 import { SessionPrompt } from "@/session/prompt"
 import { Instruction } from "@/session/instruction"
 import { LLM } from "@/session/llm"
-import { LSP } from "@/lsp/lsp"
 import { MCP } from "@/mcp"
 import { McpAuth } from "@/mcp/auth"
 import { Command } from "@/command"
 import { Truncate } from "@/tool/truncate"
 import { ToolRegistry } from "@/tool/registry"
-import { Format } from "@/format"
 import { InstanceLayer } from "@/project/instance-layer"
 import { Project } from "@/project/project"
 import { Workspace } from "@/control-plane/workspace"
@@ -79,13 +77,11 @@ export const AppLayer = Layer.mergeAll(
   SessionPrompt.defaultLayer,
   Instruction.defaultLayer,
   LLM.defaultLayer,
-  LSP.defaultLayer,
   MCP.defaultLayer,
   McpAuth.defaultLayer,
   Command.defaultLayer,
   Truncate.defaultLayer,
   ToolRegistry.defaultLayer,
-  Format.defaultLayer,
   Project.defaultLayer,
   Workspace.defaultLayer,
   Installation.defaultLayer,

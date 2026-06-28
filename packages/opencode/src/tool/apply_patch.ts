@@ -8,11 +8,9 @@ import { Patch } from "../patch"
 import { createTwoFilesPatch, diffLines } from "diff"
 import { assertExternalDirectoryEffect } from "./external-directory"
 import { trimDiff } from "./edit"
-import { LSP } from "@/lsp/lsp"
 import { FSUtil } from "@opencode-ai/core/fs-util"
 import DESCRIPTION from "./apply_patch.txt"
 import { FileSystem } from "@opencode-ai/core/filesystem"
-import { Format } from "../format"
 import * as Bom from "@/util/bom"
 
 export const Parameters = Schema.Struct({
@@ -22,9 +20,7 @@ export const Parameters = Schema.Struct({
 export const ApplyPatchTool = Tool.define(
   "apply_patch",
   Effect.gen(function* () {
-    const lsp = yield* LSP.Service
     const afs = yield* FSUtil.Service
-    const format = yield* Format.Service
     const events = yield* EventV2Bridge.Service
 
     const run = Effect.fn("ApplyPatchTool.execute")(function* (
@@ -250,9 +246,6 @@ export const ApplyPatchTool = Tool.define(
         }
 
         if (edited) {
-          if (yield* format.file(edited)) {
-            yield* Bom.syncFile(afs, edited, change.bom)
-          }
           yield* events.publish(FileSystem.Event.Edited, { file: edited })
         }
       }
@@ -261,14 +254,6 @@ export const ApplyPatchTool = Tool.define(
       for (const update of updates) {
         yield* events.publish(Watcher.Event.Updated, update)
       }
-
-      // Notify LSP of file changes and collect diagnostics
-      for (const change of fileChanges) {
-        if (change.type === "delete") continue
-        const target = change.movePath ?? change.filePath
-        yield* lsp.touchFile(target, "document")
-      }
-      const diagnostics = yield* lsp.diagnostics()
 
       // Generate output summary
       const summaryLines = fileChanges.map((change) => {
@@ -283,21 +268,11 @@ export const ApplyPatchTool = Tool.define(
       })
       let output = `Success. Updated the following files:\n${summaryLines.join("\n")}`
 
-      for (const change of fileChanges) {
-        if (change.type === "delete") continue
-        const target = change.movePath ?? change.filePath
-        const block = LSP.Diagnostic.report(target, diagnostics[FSUtil.normalizePath(target)] ?? [])
-        if (!block) continue
-        const rel = path.relative(instance.worktree, target).replaceAll("\\", "/")
-        output += `\n\nLSP errors detected in ${rel}, please fix:\n${block}`
-      }
-
       return {
         title: output,
         metadata: {
           diff: totalDiff,
           files,
-          diagnostics,
         },
         output,
       }

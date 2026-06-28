@@ -131,7 +131,6 @@ export const fileHandlers = HttpApiBuilder.group(InstanceHttpApi, "file", (handl
     return handlers
       .handle("findText", findText)
       .handle("findFile", findFile)
-      .handle("findSymbol", findSymbol)
       .handle("list", list)
       .handle("content", content)
       .handle("status", status)

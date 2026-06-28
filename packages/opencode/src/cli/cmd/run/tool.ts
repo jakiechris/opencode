@@ -23,7 +23,6 @@ import type { EditTool } from "@/tool/edit"
 import type { GlobTool } from "@/tool/glob"
 import type { GrepTool } from "@/tool/grep"
 import type { InvalidTool } from "@/tool/invalid"
-import type { LspTool } from "@/tool/lsp"
 import type { PlanExitTool } from "@/tool/plan"
 import type { QuestionTool } from "@/tool/question"
 import type { ReadTool } from "@/tool/read"
@@ -32,7 +31,6 @@ import type { TaskTool } from "@/tool/task"
 import type { TodoWriteTool } from "@/tool/todo"
 import { webSearchProviderLabel, type WebSearchTool } from "@/tool/websearch"
 import type { WriteTool } from "@/tool/write"
-import { LANGUAGE_EXTENSIONS } from "@/lsp/language"
 import * as Locale from "@/util/locale"
 import type { RunEntryBody, StreamCommit, ToolSnapshot } from "./types"
 
@@ -104,7 +102,6 @@ type ToolDefs = {
   glob: typeof GlobTool
   grep: typeof GrepTool
   list: Tool.Info
-  lsp: typeof LspTool
   websearch: typeof WebSearchTool
   skill: typeof SkillTool
   plan_exit: typeof PlanExitTool
@@ -429,34 +426,6 @@ function runBatch(p: ToolProps): ToolInline {
     title: text(p.frame.state.title) || (calls > 0 ? `Batch ${calls} tool${calls === 1 ? "" : "s"}` : "Batch"),
     mode: "block",
     body: p.frame.status === "completed" ? text(p.frame.state.output) : undefined,
-  }
-}
-
-function lspTitle(
-  input: {
-    operation?: string
-    filePath?: string
-    line?: number
-    character?: number
-  },
-  opts: { home?: boolean } = {},
-): string {
-  const op = input.operation || "request"
-  const file = input.filePath ? toolPath(input.filePath, opts) : ""
-  const line = typeof input.line === "number" ? input.line : undefined
-  const char = typeof input.character === "number" ? input.character : undefined
-  const pos = line !== undefined && char !== undefined ? `:${line}:${char}` : ""
-  if (!file) {
-    return `LSP ${op}`
-  }
-
-  return `LSP ${op} ${file}${pos}`
-}
-
-function runLsp(p: ToolProps<typeof LspTool>): ToolInline {
-  return {
-    icon: "→",
-    title: text(p.frame.state.title) || lspTitle(p.input),
   }
 }
 
@@ -845,10 +814,6 @@ function scrollQuestionFinal(p: ToolProps<typeof QuestionTool>): string {
   return rows.join("\n")
 }
 
-function scrollLspStart(p: ToolProps<typeof LspTool>): string {
-  return `→ ${lspTitle(p.input)}`
-}
-
 function scrollSkillStart(p: ToolProps<typeof SkillTool>): string {
   return `→ Skill "${p.input.name ?? ""}"`
 }
@@ -972,22 +937,6 @@ function permWebSearch(p: ToolPermissionProps<typeof WebSearchTool>): ToolPermis
     icon: "◈",
     title: query ? `${title} "${query}"` : title,
     lines: query ? [`Query: ${query}`] : [],
-  }
-}
-
-function permLsp(p: ToolPermissionProps<typeof LspTool>): ToolPermissionInfo {
-  const file = p.input.filePath || ""
-  const line = typeof p.input.line === "number" ? p.input.line : undefined
-  const char = typeof p.input.character === "number" ? p.input.character : undefined
-  const pos = line !== undefined && char !== undefined ? `${line}:${char}` : undefined
-  return {
-    icon: "→",
-    title: lspTitle(p.input, { home: true }),
-    lines: [
-      ...(p.input.operation ? [`Operation: ${p.input.operation}`] : []),
-      ...(file ? [`Path: ${toolPath(file, { home: true })}`] : []),
-      ...(pos ? [`Position: ${pos}`] : []),
-    ],
   }
 }
 
@@ -1147,17 +1096,6 @@ const TOOL_RULES = {
       start: scrollListStart,
     },
     permission: permList,
-  },
-  lsp: {
-    view: {
-      output: false,
-      final: false,
-    },
-    run: runLsp,
-    scroll: {
-      start: scrollLspStart,
-    },
-    permission: permLsp,
   },
   websearch: {
     view: {
@@ -1433,15 +1371,8 @@ export function toolEntryBody(commit: StreamCommit, raw: string): RunEntryBody |
 }
 
 export function toolFiletype(input?: string): string | undefined {
-  if (!input) {
-    return undefined
-  }
-
+  if (!input) return undefined
   const ext = path.extname(input)
-  const lang = LANGUAGE_EXTENSIONS[ext]
-  if (["typescriptreact", "javascriptreact", "javascript"].includes(lang)) {
-    return "typescript"
-  }
-
-  return lang
+  if ([".tsx", ".ts", ".mts", ".cts"].includes(ext)) return "typescript"
+  return undefined
 }

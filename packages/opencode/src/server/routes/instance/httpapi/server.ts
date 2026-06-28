@@ -13,9 +13,7 @@ import { Config } from "@/config/config"
 import { Workspace } from "@/control-plane/workspace"
 import { Env } from "@/env"
 import { EventV2Bridge } from "@/event-v2-bridge"
-import { Format } from "@/format"
 import { Installation } from "@/installation"
-import { LSP } from "@/lsp/lsp"
 import { MCP } from "@/mcp"
 import { McpAuth } from "@/mcp/auth"
 import { Permission } from "@/permission"
@@ -230,13 +228,11 @@ const app = LayerNode.group([
   { ...SessionPrompt.node, name: "SessionPrompt" },
   { ...Instruction.node, name: "Instruction" },
   { ...LLM.node, name: "LLM" },
-  { ...LSP.node, name: "LSP" },
   { ...MCP.node, name: "MCP" },
   { ...McpAuth.node, name: "McpAuth" },
   { ...Command.node, name: "Command" },
   { ...Truncate.node, name: "Truncate" },
   { ...ToolRegistry.node, name: "ToolRegistry" },
-  { ...Format.node, name: "Format" },
   { ...Project.node, name: "Project" },
   { ...Workspace.node, name: "Workspace" },
   { ...Installation.node, name: "Installation" },

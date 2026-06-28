@@ -1,7 +1,5 @@
 import { Agent } from "@/agent/agent"
 import { Command } from "@/command"
-import { Format } from "@/format"
-import { LSP } from "@/lsp/lsp"
 import { Skill } from "@/skill"
 import { Schema } from "effect"
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/unstable/httpapi"
@@ -27,8 +25,6 @@ export const InstancePaths = {
   command: "/command",
   agent: "/agent",
   skill: "/skill",
-  lsp: "/lsp",
-  formatter: "/formatter",
 } as const
 
 export const InstanceApi = HttpApi.make("instance")
@@ -84,26 +80,6 @@ export const InstanceApi = HttpApi.make("instance")
             identifier: "app.skills",
             summary: "List skills",
             description: "Get a list of all available skills in the OpenCode system.",
-          }),
-        ),
-        HttpApiEndpoint.get("lsp", InstancePaths.lsp, {
-          query: WorkspaceRoutingQuery,
-          success: described(Schema.Array(LSP.Status), "LSP server status"),
-        }).annotateMerge(
-          OpenApi.annotations({
-            identifier: "lsp.status",
-            summary: "Get LSP status",
-            description: "Get LSP server status",
-          }),
-        ),
-        HttpApiEndpoint.get("formatter", InstancePaths.formatter, {
-          query: WorkspaceRoutingQuery,
-          success: described(Schema.Array(Format.Status), "Formatter status"),
-        }).annotateMerge(
-          OpenApi.annotations({
-            identifier: "formatter.status",
-            summary: "Get formatter status",
-            description: "Get formatter status",
           }),
         ),
       )

@@ -17,7 +17,6 @@ import { InvalidTool } from "./invalid"
 import { SkillTool } from "./skill"
 import * as Tool from "./tool"
 import { Config } from "@/config/config"
-import { type ToolContext as PluginToolContext, type ToolDefinition } from "@opencode-ai/plugin"
 import type { JSONSchema7, JSONSchema7Definition } from "@ai-sdk/provider"
 import { Schema } from "effect"
 import z from "zod"
@@ -25,7 +24,6 @@ import { Plugin } from "../plugin"
 import { Provider } from "@/provider/provider"
 
 import { WebSearchTool } from "./websearch"
-import { LspTool } from "./lsp"
 import * as Truncate from "./truncate"
 import { ApplyPatchTool } from "./apply_patch"
 import { Glob } from "@opencode-ai/core/util/glob"
@@ -35,12 +33,10 @@ import { Effect, Layer, Context } from "effect"
 import { FetchHttpClient, HttpClient } from "effect/unstable/http"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
-import { Format } from "../format"
 import { InstanceState } from "@/effect/instance-state"
 import { EffectBridge } from "@/effect/bridge"
 import { Question } from "../question"
 import { Todo } from "../session/todo"
-import { LSP } from "@/lsp/lsp"
 import { Instruction } from "../session/instruction"
 import { FSUtil } from "@opencode-ai/core/fs-util"
 import { EventV2Bridge } from "@/event-v2-bridge"
@@ -93,7 +89,6 @@ export const layer = Layer.effect(
     const read = yield* ReadTool
     const question = yield* QuestionTool
     const todo = yield* TodoWriteTool
-    const lsptool = yield* LspTool
     const plan = yield* PlanExitTool
     const websearch = yield* WebSearchTool
     const shell = yield* ShellTool
@@ -207,7 +202,6 @@ export const layer = Layer.effect(
           skill: Tool.init(skilltool),
           patch: Tool.init(patchtool),
           question: Tool.init(question),
-          lsp: Tool.init(lsptool),
           plan: Tool.init(plan),
         })
 
@@ -227,7 +221,6 @@ export const layer = Layer.effect(
             tool.search,
             tool.skill,
             tool.patch,
-            ...(flags.experimentalLspTool ? [tool.lsp] : []),
             ...(flags.experimentalPlanMode && flags.client === "cli" ? [tool.plan] : []),
           ],
           task: tool.task,
@@ -323,12 +316,10 @@ export const defaultLayer = Layer.suspend(() =>
       Layer.provide(Session.defaultLayer),
       Layer.provide(BackgroundJob.defaultLayer),
       Layer.provide(Provider.defaultLayer),
-      Layer.provide(LSP.defaultLayer),
       Layer.provide(Instruction.defaultLayer),
       Layer.provide(FSUtil.defaultLayer),
       Layer.provide(EventV2Bridge.defaultLayer),
       Layer.provide(FetchHttpClient.layer),
-      Layer.provide(Format.defaultLayer),
       Layer.provide(CrossSpawnSpawner.defaultLayer),
       Layer.provide(Truncate.defaultLayer),
     )
@@ -421,13 +412,11 @@ export const node = LayerNode.make(layer.pipe(Layer.provide(Ripgrep.defaultLayer
   Session.node,
   BackgroundJob.node,
   Provider.node,
-  LSP.node,
   Instruction.node,
   FSUtil.node,
   EventV2Bridge.node,
   httpClient,
   CrossSpawnSpawner.node,
-  Format.node,
   Truncate.node,
   RuntimeFlags.node,
   Database.node,
