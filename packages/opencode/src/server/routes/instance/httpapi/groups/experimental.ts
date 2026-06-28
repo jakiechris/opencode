@@ -3,10 +3,9 @@ import { MCP } from "@/mcp"
 
 import { Session } from "@/session/session"
 import { SessionID } from "@/session/schema"
-import { Worktree } from "@/worktree"
 import { NonNegativeInt } from "@opencode-ai/core/schema"
 import { Schema } from "effect"
-import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/unstable/httpapi"
+import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
 import { Authorization } from "../middleware/authorization"
 import { InstanceContextMiddleware } from "../middleware/instance-context"
 import {
@@ -60,23 +59,6 @@ export const ToolListQuery = Schema.Struct({
   model: ModelV2.ID,
 })
 
-const WorktreeList = Schema.Array(Schema.String)
-const WorktreeErrorName = Schema.Union([
-  Schema.Literal("WorktreeNotGitError"),
-  Schema.Literal("WorktreeNameGenerationFailedError"),
-  Schema.Literal("WorktreeCreateFailedError"),
-  Schema.Literal("WorktreeStartCommandFailedError"),
-  Schema.Literal("WorktreeRemoveFailedError"),
-  Schema.Literal("WorktreeResetFailedError"),
-  Schema.Literal("WorktreeListFailedError"),
-])
-export class WorktreeApiError extends Schema.ErrorClass<WorktreeApiError>("WorktreeError")(
-  {
-    name: WorktreeErrorName,
-    data: Schema.Struct({ message: Schema.String }),
-  },
-  { httpApiStatus: 400 },
-) {}
 export const SessionListQuery = Schema.Struct({
   ...WorkspaceRoutingQueryFields,
   roots: Schema.optional(QueryBoolean),
@@ -94,8 +76,6 @@ export const ExperimentalPaths = {
   consoleSwitch: "/experimental/console/switch",
   tool: "/experimental/tool",
   toolIDs: "/experimental/tool/ids",
-  worktree: "/experimental/worktree",
-  worktreeReset: "/experimental/worktree/reset",
   session: "/experimental/session",
   sessionBackground: "/experimental/session/:sessionID/background",
   resource: "/experimental/resource",
@@ -171,54 +151,6 @@ export const ExperimentalApi = HttpApi.make("experimental")
             summary: "List tool IDs",
             description:
               "Get a list of all available tool IDs, including both built-in tools and dynamically registered tools.",
-          }),
-        ),
-        HttpApiEndpoint.get("worktree", ExperimentalPaths.worktree, {
-          query: WorkspaceRoutingQuery,
-          success: described(WorktreeList, "List of worktree directories"),
-          error: WorktreeApiError,
-        }).annotateMerge(
-          OpenApi.annotations({
-            identifier: "worktree.list",
-            summary: "List worktrees",
-            description: "List all sandbox worktrees for the current project.",
-          }),
-        ),
-        HttpApiEndpoint.post("worktreeCreate", ExperimentalPaths.worktree, {
-          disableCodecs: true,
-          query: WorkspaceRoutingQuery,
-          payload: [HttpApiSchema.NoContent, Worktree.CreateInput],
-          success: described(Worktree.Info, "Worktree created"),
-          error: WorktreeApiError,
-        }).annotateMerge(
-          OpenApi.annotations({
-            identifier: "worktree.create",
-            summary: "Create worktree",
-            description: "Create a new git worktree for the current project and run any configured startup scripts.",
-          }),
-        ),
-        HttpApiEndpoint.delete("worktreeRemove", ExperimentalPaths.worktree, {
-          query: WorkspaceRoutingQuery,
-          payload: Worktree.RemoveInput,
-          success: described(Schema.Boolean, "Worktree removed"),
-          error: WorktreeApiError,
-        }).annotateMerge(
-          OpenApi.annotations({
-            identifier: "worktree.remove",
-            summary: "Remove worktree",
-            description: "Remove a git worktree and delete its branch.",
-          }),
-        ),
-        HttpApiEndpoint.post("worktreeReset", ExperimentalPaths.worktreeReset, {
-          query: WorkspaceRoutingQuery,
-          payload: Worktree.ResetInput,
-          success: described(Schema.Boolean, "Worktree reset"),
-          error: WorktreeApiError,
-        }).annotateMerge(
-          OpenApi.annotations({
-            identifier: "worktree.reset",
-            summary: "Reset worktree",
-            description: "Reset a worktree branch to the primary default branch.",
           }),
         ),
         HttpApiEndpoint.get("session", ExperimentalPaths.session, {

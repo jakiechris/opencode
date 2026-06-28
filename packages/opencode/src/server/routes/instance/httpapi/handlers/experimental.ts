@@ -2,26 +2,17 @@ import { Account } from "@/account/account"
 import { Agent } from "@/agent/agent"
 import { BackgroundJob } from "@/background/job"
 import { Config } from "@/config/config"
-import { InstanceState } from "@/effect/instance-state"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { MCP } from "@/mcp"
-import { Project } from "@/project/project"
 import { Session } from "@/session/session"
 import type { SessionID } from "@/session/schema"
 import { ToolJsonSchema } from "@/tool/json-schema"
 import { ToolRegistry } from "@/tool/registry"
-import { Worktree } from "@/worktree"
 import { Effect, Option } from "effect"
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse"
 import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
 import { InstanceHttpApi } from "../api"
-import { ConsoleSwitchPayload, SessionListQuery, ToolListQuery, WorktreeApiError } from "../groups/experimental"
-
-function mapWorktreeError<A, R>(self: Effect.Effect<A, Worktree.Error, R>) {
-  return self.pipe(
-    Effect.mapError((error) => new WorktreeApiError({ name: error._tag, data: { message: error.message } })),
-  )
-}
+import { ConsoleSwitchPayload, SessionListQuery, ToolListQuery } from "../groups/experimental"
 
 export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "experimental", (handlers) =>
   Effect.gen(function* () {
@@ -29,9 +20,7 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
     const agents = yield* Agent.Service
     const config = yield* Config.Service
     const mcp = yield* MCP.Service
-    const project = yield* Project.Service
     const registry = yield* ToolRegistry.Service
-    const worktreeSvc = yield* Worktree.Service
     const sessions = yield* Session.Service
     const background = yield* BackgroundJob.Service
     const flags = yield* RuntimeFlags.Service
@@ -108,33 +97,6 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
       return yield* registry.ids()
     })
 
-    const worktree = Effect.fn("ExperimentalHttpApi.worktree")(function* () {
-      const ctx = yield* InstanceState.context
-      return yield* project.sandboxes(ctx.project.id)
-    })
-
-    const worktreeCreate = Effect.fn("ExperimentalHttpApi.worktreeCreate")(function* (ctx: {
-      payload: typeof Worktree.CreateInput.Type | void
-    }) {
-      return yield* mapWorktreeError(worktreeSvc.create(ctx.payload ?? undefined))
-    })
-
-    const worktreeRemove = Effect.fn("ExperimentalHttpApi.worktreeRemove")(function* (input: {
-      payload: Worktree.RemoveInput
-    }) {
-      const ctx = yield* InstanceState.context
-      yield* mapWorktreeError(worktreeSvc.remove(input.payload))
-      yield* project.removeSandbox(ctx.project.id, input.payload.directory)
-      return true
-    })
-
-    const worktreeReset = Effect.fn("ExperimentalHttpApi.worktreeReset")(function* (ctx: {
-      payload: Worktree.ResetInput
-    }) {
-      yield* mapWorktreeError(worktreeSvc.reset(ctx.payload))
-      return true
-    })
-
     const session = Effect.fn("ExperimentalHttpApi.session")(function* (ctx: { query: typeof SessionListQuery.Type }) {
       const limit = ctx.query.limit ?? 100
       const all = yield* sessions.listGlobal({
@@ -181,10 +143,6 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
       .handle("consoleSwitch", switchConsole)
       .handle("tool", tool)
       .handle("toolIDs", toolIDs)
-      .handle("worktree", worktree)
-      .handle("worktreeCreate", worktreeCreate)
-      .handle("worktreeRemove", worktreeRemove)
-      .handle("worktreeReset", worktreeReset)
       .handle("session", session)
       .handle("sessionBackground", sessionBackground)
       .handle("resource", resource)

@@ -44,7 +44,6 @@ import { Discovery } from "@/skill/discovery"
 import { Storage } from "@/storage/storage"
 import { ToolRegistry } from "@/tool/registry"
 import { Truncate } from "@/tool/truncate"
-import { Worktree } from "@/worktree"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { MoveSession } from "@opencode-ai/core/control-plane/move-session"
 import { Database } from "@opencode-ai/core/database/database"
@@ -240,7 +239,6 @@ const app = LayerNode.group([
   { ...Format.node, name: "Format" },
   { ...Project.node, name: "Project" },
   { ...Workspace.node, name: "Workspace" },
-  { ...Worktree.node, name: "Worktree" },
   { ...Installation.node, name: "Installation" },
   { ...ShareNext.node, name: "ShareNext" },
   { ...SessionShare.node, name: "SessionShare" },
