@@ -63,6 +63,7 @@ export const layer: Layer.Layer<
     ]
     const instructionFiles = [
       "AGENTS.md",
+      ".opencode/AGENTS.md",
       ...(!flags.disableClaudeCodePrompt ? ["CLAUDE.md"] : []),
       "CONTEXT.md", // deprecated
     ]
@@ -149,6 +150,7 @@ export const layer: Layer.Layer<
         }
       }
 
+      yield* Effect.logInfo("[Instruction] systemPaths result", { paths: [...paths] })
       return paths
     })
 

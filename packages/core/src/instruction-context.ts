@@ -42,17 +42,32 @@ export const layer = Layer.effectDiscard(
       const fromProject = relative(stop, start)
       const insideProject =
         fromProject === "" || (fromProject !== ".." && !fromProject.startsWith(`..${sep}`) && !isAbsolute(fromProject))
+      yield* Effect.logInfo("[InstructionContext] scanning for AGENTS.md", {
+        start,
+        stop,
+        insideProject,
+      })
       const discovered = new Set(
         (Flag.OPENCODE_DISABLE_PROJECT_CONFIG || !insideProject
           ? []
           : yield* fs.up({
-              targets: ["AGENTS.md"],
+              targets: ["AGENTS.md", ".opencode/AGENTS.md"],
               start,
               stop,
             })
         ).map(FSUtil.resolve),
       )
-      const paths = Array.dedupe([FSUtil.resolve(join(global.config, "AGENTS.md")), ...discovered])
+      if (discovered.size > 0) {
+        yield* Effect.logInfo("[InstructionContext] found via fs.up", {
+          discovered: [...discovered],
+        })
+      } else {
+        yield* Effect.logInfo("[InstructionContext] no AGENTS.md found via fs.up")
+      }
+      const globalPath = FSUtil.resolve(join(global.config, "AGENTS.md"))
+      yield* Effect.logInfo("[InstructionContext] global config path", { globalPath })
+      const paths = Array.dedupe([globalPath, ...discovered])
+      yield* Effect.logInfo("[InstructionContext] candidate paths to check", { paths })
       const files = yield* Effect.forEach(
         paths,
         (path) =>
@@ -67,7 +82,12 @@ export const layer = Layer.effectDiscard(
       )
       if (files.some((file, index) => file === undefined && discovered.has(paths[index])))
         return SystemContext.unavailable
-      return files.filter((file): file is File => file !== undefined)
+      const validFiles = files.filter((file): file is File => file !== undefined)
+      yield* Effect.logInfo("[InstructionContext] files loaded", {
+        count: validFiles.length,
+        paths: validFiles.map((f) => f.path),
+      })
+      return validFiles
     })
 
     yield* registry.register({
