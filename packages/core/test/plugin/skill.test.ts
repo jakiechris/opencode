@@ -17,17 +17,14 @@ const it = testEffect(
 )
 
 describe("SkillPlugin.Plugin", () => {
-  it.effect("registers the built-in customize-opencode skill", () =>
+  it.effect("registers no built-in skills by default", () =>
     Effect.gen(function* () {
       const skill = yield* SkillV2.Service
       yield* SkillPlugin.Plugin.effect(host({ skill: { ...skill, reload: skill.reload } }))
 
-      expect(yield* skill.list()).toContainEqual(
-        expect.objectContaining({
-          name: "customize-opencode",
-          description: expect.stringContaining("opencode's own configuration"),
-        }),
-      )
+      const list = yield* skill.list()
+      const builtin = list.filter((s) => s.name === "customize-opencode")
+      expect(builtin).toHaveLength(0)
     }),
   )
 })

@@ -80,6 +80,7 @@ export const EditTool = Tool.define(
           let diff = ""
           let contentOld = ""
           let contentNew = ""
+          let output = ""
           yield* lock(filePath).withPermits(1)(
             Effect.gen(function* () {
               if (params.oldString === "") {
@@ -109,6 +110,7 @@ export const EditTool = Tool.define(
                   file: filePath,
                   event: "add",
                 })
+                output = `Created file ${filePath} successfully.`
                 return
               }
 
@@ -150,6 +152,7 @@ export const EditTool = Tool.define(
                 file: filePath,
                 event: "change",
               })
+              output = `Edited file ${filePath} successfully.`
               diff = trimDiff(
                 createTwoFilesPatch(
                   filePath,
