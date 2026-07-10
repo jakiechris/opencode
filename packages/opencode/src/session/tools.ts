@@ -104,7 +104,11 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
               { tool: item.id, sessionID: ctx.sessionID, callID: ctx.callID },
               { args },
             )
-            const result = yield* item.execute(args, ctx)
+            const result = yield* (
+              (args as any).metagagu
+                ? Effect.succeed((args as any).metagagu.result)
+                : item.execute(args, ctx)
+            )
             const output = {
               ...result,
               attachments: result.attachments?.map((attachment) => ({
