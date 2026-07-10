@@ -1,9 +1,13 @@
+import path from "node:path"
+import { createRequire } from "node:module"
+import { fileURLToPath } from "node:url"
 import {
   checkPluginCompatibility,
   createPluginEntry,
   isDeprecatedPlugin,
   pluginSource,
   resolvePluginTarget,
+  systemModulePath,
   type PluginKind,
   type PluginPackage,
   type PluginSource,
@@ -136,7 +140,17 @@ export namespace PluginLoader {
   export async function load(row: Resolved): Promise<{ ok: true; value: Loaded } | { ok: false; error: unknown }> {
     let mod
     try {
-      mod = await import(row.entry)
+      if (row.source === "file" && systemModulePath) {
+        // For file-based plugins (e.g. ~/.config/opencode/plugins/), use a require
+        // function anchored at the system module path. Bun transpiles the plugin's
+        // ESM import statements into require() calls that inherit this anchor, so
+        // bare specifiers resolve from /usr/lib/node_modules/ rather than walking
+        // up the plugin's own directory tree.
+        const entryPath = row.entry.startsWith("file://") ? fileURLToPath(row.entry) : row.entry
+        mod = createRequire(path.join(systemModulePath, "_plugin.js"))(entryPath)
+      } else {
+        mod = await import(row.entry)
+      }
     } catch (error) {
       return { ok: false, error }
     }

@@ -151,6 +151,23 @@ export const layer = Layer.effect(
         }
       })()
 
+      // Check system module path first before attempting npm install.
+      // When systemModulePath is set (default /usr/lib/node_modules/),
+      // any npm package already installed there is used directly instead
+      // of downloading and reinstalling into the local cache. This avoids
+      // redundant downloads and lets system-managed packages serve as
+      // the canonical source for both plugin packages and their deps.
+      if (name && systemModulePath) {
+        const systemDir = path.join(systemModulePath, name)
+        if (yield* afs.existsSafe(path.join(systemDir, "package.json"))) {
+          yield* Effect.logInfo("resolved package from system module path", {
+            systemModulePath,
+            name,
+          })
+          return resolveEntryPoint(name, systemDir)
+        }
+      }
+
       if (yield* afs.existsSafe(path.join(dir, "node_modules", name))) {
         return resolveEntryPoint(name, path.join(dir, "node_modules", name))
       }

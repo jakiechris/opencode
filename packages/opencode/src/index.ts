@@ -26,6 +26,16 @@ import { errorMessage } from "./util/error"
 import { PluginCommand } from "./cli/cmd/plug"
 import { Heap } from "./cli/heap"
 
+// Ensure NODE_PATH includes /usr/lib/node_modules so Bun's native module
+// resolver checks it for bare specifiers in dynamic import() calls within
+// file plugins (the createRequire loader handles static import → require
+// but cannot intercept runtime dynamic imports).
+if (!process.env.NODE_PATH?.includes("/usr/lib/node_modules")) {
+  process.env.NODE_PATH = process.env.NODE_PATH
+    ? `/usr/lib/node_modules:${process.env.NODE_PATH}`
+    : "/usr/lib/node_modules"
+}
+
 const t = performance.now()
 ;(globalThis as any).__t_index = t
 const args = hideBin(process.argv)

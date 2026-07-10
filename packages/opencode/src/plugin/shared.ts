@@ -206,7 +206,7 @@ export async function checkPluginCompatibility(target: string, opencodeVersion: 
 
 // System module path checked before falling back to npm install.
 // Set to empty string to disable (e.g. in tests).
-let systemModulePath = "/usr/lib/node_modules"
+export let systemModulePath = "/usr/lib/node_modules"
 
 /** Override the system module path (used in tests). */
 export function setSystemModulePath(p: string) {
