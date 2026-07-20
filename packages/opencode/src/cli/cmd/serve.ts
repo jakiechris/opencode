@@ -2,6 +2,7 @@ import { Effect } from "effect"
 import { effectCmd } from "../effect-cmd"
 import { withNetworkOptions, resolveNetworkOptions } from "../network"
 import { Flag } from "@opencode-ai/core/flag/flag"
+import { networkInterfaces } from "node:os"
 
 export const ServeCommand = effectCmd({
   command: "serve",
@@ -25,7 +26,19 @@ export const ServeCommand = effectCmd({
       `[Timing] import server: ${(t1 - t0).toFixed(0)}ms, resolve opts: ${(t2 - t1).toFixed(0)}ms, listen: ${(t3 - t2).toFixed(0)}ms`,
     )
     console.log(`opencode server listening on http://${server.hostname}:${server.port}`)
+    const localIp = getLocalIp()
+    if (localIp) console.log(`Local IP: ${localIp}`)
 
     yield* Effect.never
   }),
 })
+
+function getLocalIp() {
+  const interfaces = networkInterfaces()
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name] ?? []) {
+      if (iface.family === "IPv4" && !iface.internal) return iface.address
+    }
+  }
+  return undefined
+}

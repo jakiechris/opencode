@@ -11,6 +11,142 @@ import {
 import { ConfigPlugin } from "@/config/plugin"
 import { ConfigPluginV1 } from "@opencode-ai/core/v1/config/plugin"
 import { InstallationVersion } from "@opencode-ai/core/installation/version"
+import { readFileSync, writeFileSync, unlinkSync, mkdirSync } from "node:fs"
+import { join, dirname, basename, resolve } from "node:path"
+import { fileURLToPath, pathToFileURL } from "node:url"
+import { tmpdir } from "node:os"
+import { createRequire } from "node:module"
+
+// Cache for @opencode-ai/plugin package resolution info
+let pluginPackageInfo: { exportsMap: Record<string, string>; pkgRoot: string } | null | undefined = undefined
+
+function getPluginPackageInfo() {
+  if (pluginPackageInfo !== undefined) return pluginPackageInfo
+  if (typeof Bun === "undefined") {
+    pluginPackageInfo = null
+    return null
+  }
+  try {
+    const resolved = Bun.resolveSync("@opencode-ai/plugin", "/usr/lib/node_modules")
+    const resolvedPath = resolved.startsWith("file://") ? fileURLToPath(resolved) : resolved
+    const pkgRoot = resolvedPath.replace(/\/dist\/.*$/, "").replace(/\/src\/.*$/, "")
+    const pkgJson = JSON.parse(readFileSync(join(pkgRoot, "package.json"), "utf-8"))
+    const exportsMap: Record<string, string> = {}
+    for (const [key, value] of Object.entries(pkgJson.exports || {})) {
+      if (typeof value === "string") {
+        exportsMap[key] = join(pkgRoot, value)
+      } else if (value && typeof value === "object" && "import" in value) {
+        exportsMap[key] = join(pkgRoot, (value as any).import)
+      }
+    }
+    pluginPackageInfo = { exportsMap, pkgRoot }
+  } catch {
+    pluginPackageInfo = null
+  }
+  return pluginPackageInfo
+}
+
+function transformPluginImports(content: string, exportsMap: Record<string, string>): string {
+  return content.replace(
+    /from\s+["']@opencode-ai\/plugin(\/[^"']*)?["']/g,
+    (match, subpath: string | undefined) => {
+      const key = subpath ? "." + subpath : "."
+      const mapped = exportsMap[key]
+      if (mapped) return `from "${mapped}"`
+      return match
+    }
+  )
+}
+
+// Resolve relative imports ("./foo", "../bar") to absolute file:// URLs so the file
+// can be safely moved to a temp directory (e.g. /tmp) without breaking resolution.
+function resolveRelativeImports(content: string, fileDir: string): string {
+  // from "./foo", export * from "./foo", export { x } from "./foo"
+  content = content.replace(
+    /(from\s+["'])(\.[^"']*)(["'])/g,
+    (_match, prefix, importPath: string, suffix) => {
+      const resolved = resolve(fileDir, importPath)
+      return `${prefix}${pathToFileURL(resolved).href}${suffix}`
+    }
+  )
+  // import("./foo")
+  content = content.replace(
+    /(import\s*\(\s*["'])(\.[^"']*)(["']\s*\))/g,
+    (_match, prefix, importPath: string, suffix) => {
+      const resolved = resolve(fileDir, importPath)
+      return `${prefix}${pathToFileURL(resolved).href}${suffix}`
+    }
+  )
+  // import "./foo" (bare side-effect import at start of line)
+  content = content.replace(
+    /^(import\s+["'])(\.[^"']*)(["'])/gm,
+    (_match, prefix, importPath: string, suffix) => {
+      const resolved = resolve(fileDir, importPath)
+      return `${prefix}${pathToFileURL(resolved).href}${suffix}`
+    }
+  )
+  return content
+}
+
+// Convert ESM JavaScript to CJS for in-memory evaluation via new Function().
+// This avoids writing transformed plugin files to disk.
+function esmToCjs(code: string): string {
+  const namedExports: string[] = []
+
+  // export const|let|var name → keep local variable, register for module.exports
+  code = code.replace(/^export\s+(const|let|var)\s+(\w+)/gm, (_match, kw, name) => {
+    namedExports.push(name)
+    return `${kw} ${name}`
+  })
+  // export function name → keep local function
+  code = code.replace(/^export\s+function\s+(\w+)/gm, (_match, name) => {
+    namedExports.push(name)
+    return `function ${name}`
+  })
+  // export class Name → keep local class
+  code = code.replace(/^export\s+class\s+(\w+)/gm, (_match, name) => {
+    namedExports.push(name)
+    return `class ${name}`
+  })
+  // import { x } from "y" / import { x as z } from "y"
+  code = code.replace(/import\s*\{([^}]+)\}\s*from\s+"([^"]+)"/g, (_match, exports, source) => {
+    const items = exports.split(",").map((i: string) => i.trim())
+    const bindings = items.map((item: string) => {
+      const parts = item.split(/\s+as\s+/)
+      return parts.length > 1 ? `${parts[0].trim()}: ${parts[1].trim()}` : item
+    })
+    return `const { ${bindings.join(", ")} } = require("${source}")`
+  })
+  // import * as x from "y"
+  code = code.replace(/import\s*\*\s*as\s+(\w+)\s+from\s+"([^"]+)"/g, (_match, name, source) => `const ${name} = require("${source}")`)
+  // import x from "y"
+  code = code.replace(/import\s+(\w+)\s+from\s+"([^"]+)"/g, (_match, name, source) => `const ${name} = require("${source}").default ?? require("${source}")`)
+  // import "y" (side-effect, no space after import allowed)
+  code = code.replace(/^import\s*"([^"]+)"\s*;?\s*$/gm, (_match, source) => `require("${source}");`)
+  // export default
+  code = code.replace(/^export\s+default\s+/gm, "module.exports.default = ")
+  // export { x } / export { x as z }
+  code = code.replace(/^export\s+\{([^}]+)\}\s*;?\s*$/gm, (_match, exports) => {
+    return exports.split(",").map((i: string) => i.trim()).map((item: string) => {
+      const parts = item.split(/\s+as\s+/)
+      return `module.exports.${parts.length > 1 ? parts[1].trim() : parts[0].trim()} = ${parts[0].trim()};`
+    }).join("\n")
+  })
+  // export * from "y"
+  code = code.replace(/^export\s+\*\s+from\s+"([^"]+)"\s*;?\s*$/gm, (_match, source) =>
+    `Object.assign(module.exports, require("${source}"));`)
+  // export { x } from "y"
+  code = code.replace(/^export\s+\{([^}]+)\}\s+from\s+"([^"]+)"\s*;?\s*$/gm, (_match, exports, source) => {
+    const names = exports.split(",").map((i: string) => i.split(/\s+as\s+/)[0].trim())
+    return `const { ${names.join(", ")} } = require("${source}")`
+  })
+
+  // Append module.exports assignments for all named exports
+  for (const name of namedExports) {
+    code += `\nmodule.exports.${name} = ${name};`
+  }
+  return code
+}
 
 export namespace PluginLoader {
   // A normalized plugin declaration derived from config before any filesystem or npm work happens.
@@ -136,7 +272,51 @@ export namespace PluginLoader {
   export async function load(row: Resolved): Promise<{ ok: true; value: Loaded } | { ok: false; error: unknown }> {
     let mod
     try {
-      mod = await import(row.entry)
+      // For file-based plugins, transform @opencode-ai/plugin imports to use
+      // the resolved path from the system module path (/usr/lib/node_modules),
+      // and resolve relative imports to absolute paths so the file can be
+      // loaded from a temp directory (the plugins directory may be read-only).
+      if (row.entry.startsWith("file://")) {
+        const filePath = fileURLToPath(row.entry)
+        const content = readFileSync(filePath, "utf-8")
+        if (content.includes("@opencode-ai/plugin")) {
+          const info = getPluginPackageInfo()
+          if (info) {
+            const transformed = transformPluginImports(content, info.exportsMap)
+            if (transformed !== content) {
+              const fileDir = dirname(filePath)
+              const resolved = resolveRelativeImports(transformed, fileDir)
+
+              if (typeof Bun !== "undefined" && typeof Bun.Transpiler !== "undefined") {
+                // In-memory: transpile TS → JS, convert ESM → CJS, evaluate via Function.
+                // No temp file is written — the plugin module is constructed in memory.
+                const transpiler = new Bun.Transpiler({ loader: "ts" })
+                const jsCode = transpiler.transformSync(resolved)
+                const cjsCode = esmToCjs(jsCode)
+                const req = createRequire(filePath)
+                const m: { exports: Record<string, unknown> } = { exports: {} }
+                const fn = new Function("require", "module", "exports", "__dirname", "__filename", cjsCode)
+                fn(req, m, m.exports, fileDir, filePath)
+                mod = m.exports
+              } else {
+                // Fallback for non-Bun environments: write temp file and import
+                const tmpDirPath = join(tmpdir(), "opencode-plugins")
+                mkdirSync(tmpDirPath, { recursive: true })
+                const tmpFile = join(tmpDirPath, `.opencode-imports-${basename(filePath)}`)
+                writeFileSync(tmpFile, resolved)
+                try {
+                  mod = await import(pathToFileURL(tmpFile).href)
+                } finally {
+                  try { unlinkSync(tmpFile) } catch {}
+                }
+              }
+            }
+          }
+        }
+      }
+      if (!mod) {
+        mod = await import(row.entry)
+      }
     } catch (error) {
       return { ok: false, error }
     }

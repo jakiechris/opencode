@@ -184,12 +184,18 @@ export const layer = Layer.effect(
             items: plugins,
             kind: "server",
             report: {
-              start(candidate) {},
-              missing(candidate, _retry, message) {},
+              start(candidate) {
+                console.log(`[Plugin] Loading external plugin: ${candidate.plan.spec}`)
+              },
+              missing(candidate, _retry, message) {
+                console.log(`[Plugin] Plugin missing entrypoint: ${candidate.plan.spec} — ${message}`)
+              },
               error(candidate, _retry, stage, error, resolved) {
                 const spec = candidate.plan.spec
                 const cause = error instanceof Error ? (error.cause ?? error) : error
                 const message = stage === "load" ? errorMessage(error) : errorMessage(cause)
+
+                console.error(`[Plugin] Plugin ${spec} failed at stage "${stage}": ${message}`)
 
                 if (stage === "install") {
                   const parsed = parsePluginSpecifier(spec)
@@ -217,7 +223,7 @@ export const layer = Layer.effect(
 
           // Keep plugin execution sequential so hook registration and execution
           // order remains deterministic across plugin runs.
-          yield* Effect.tryPromise({
+          const applied = yield* Effect.tryPromise({
             try: () => applyPlugin(load, input, hooks),
             catch: (err) => {
               const message = errorMessage(err)
@@ -225,16 +231,19 @@ export const layer = Layer.effect(
             },
           }).pipe(
             Effect.tapError((error) => Effect.logError("failed to load plugin", { path: load.spec, error })),
-            Effect.catch(() => {
-              // TODO: make proper events for this
-              // events.publish(Session.Event.Error, {
-              //   error: new NamedError.Unknown({
-              //     message: `Failed to load plugin ${load.spec}: ${message}`,
-              //   }).toObject(),
-              // })
-              return Effect.void
-            }),
+            Effect.option,
           )
+          if (applied._tag === "Some") {
+            console.log(`[Plugin] External plugin loaded: ${load.spec}`)
+          } else {
+            console.error(`[Plugin] Failed to apply plugin: ${load.spec}`)
+            // TODO: make proper events for this
+            // events.publish(Session.Event.Error, {
+            //   error: new NamedError.Unknown({
+            //     message: `Failed to load plugin ${load.spec}: ${message}`,
+            //   }).toObject(),
+            // })
+          }
         }
 
         // Notify plugins of current config
