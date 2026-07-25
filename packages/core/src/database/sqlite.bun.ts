@@ -160,7 +160,14 @@ const nativeLayer = (config: Config) =>
         readwrite: config.readwrite ?? true,
         create: config.create ?? true,
       })
-      yield* Effect.addFinalizer(() => Effect.sync(() => native.close()))
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => {
+          try {
+            native.run("PRAGMA wal_checkpoint(TRUNCATE)")
+          } catch (_) {}
+          native.close()
+        }),
+      )
       if (config.disableWAL !== true) native.run("PRAGMA journal_mode = WAL;")
       return native
     }),

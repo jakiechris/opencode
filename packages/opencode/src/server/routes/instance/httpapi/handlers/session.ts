@@ -16,6 +16,8 @@ import { SessionSummary } from "@/session/summary"
 import { Todo } from "@/session/todo"
 import { MessageID, PartID, SessionID } from "@/session/schema"
 import { NamedError } from "@opencode-ai/core/util/error"
+import { awaitDisposing } from "@/effect/instance-dispose-signal"
+import { InstanceRef } from "@/effect/instance-ref"
 import { Cause, Effect, Option, Schema, Scope } from "effect"
 import * as Stream from "effect/Stream"
 import { HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
@@ -295,12 +297,19 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       payload: typeof PromptPayload.Type
     }) {
       yield* requireSession(ctx.params.sessionID)
-      const message = yield* promptSvc
-        .prompt({
-          ...ctx.payload,
-          sessionID: ctx.params.sessionID,
-        })
-        .pipe(Effect.mapError(() => new HttpApiError.BadRequest({})))
+      const instanceCtx = yield* InstanceRef
+      // Race the LLM run against a dispose signal so that if the instance is
+      // torn down mid-request we return 503 instead of dropping the connection.
+      const message = yield* Effect.race(
+        promptSvc
+          .prompt({ ...ctx.payload, sessionID: ctx.params.sessionID })
+          .pipe(Effect.mapError(() => new HttpApiError.BadRequest({}))),
+        instanceCtx
+          ? awaitDisposing(instanceCtx.directory).pipe(
+              Effect.flatMap(() => Effect.fail(new HttpApiError.ServiceUnavailable({}))),
+            )
+          : Effect.never,
+      )
       return HttpServerResponse.stream(Stream.make(JSON.stringify(message)).pipe(Stream.encodeText), {
         contentType: "application/json",
       })

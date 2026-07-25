@@ -4,6 +4,7 @@ import { serviceUse } from "@opencode-ai/core/effect/service-use"
 import { WorkspaceContext } from "@/control-plane/workspace-context"
 import { InstanceRef } from "@/effect/instance-ref"
 import { disposeInstance as runDisposers } from "@/effect/instance-registry"
+import { clearDisposeSignal, signalDisposing } from "@/effect/instance-dispose-signal"
 import { FSUtil } from "@opencode-ai/core/fs-util"
 import { Context, Deferred, Duration, Effect, Exit, Layer, Scope } from "effect"
 import { type InstanceContext } from "./instance-context"
@@ -93,7 +94,17 @@ export const layer: Layer.Layer<Service, never, Project.Service | InstanceBootst
 
     const disposeContext = Effect.fn("InstanceStore.disposeContext")(function* (ctx: InstanceContext) {
       yield* Effect.logInfo("disposing instance", { directory: ctx.directory })
+      // 1. Signal in-flight HTTP handlers (e.g. blocking POST /message) that
+      //    this instance is shutting down so they can return a 503 response
+      //    before services are torn down.
+      signalDisposing(ctx.directory)
+      // 2. Brief grace period: handlers racing awaitDisposing() unblock
+      //    immediately, but they still need a tick to produce their response.
+      yield* Effect.sleep(Duration.millis(300))
+      // 3. Tear down all instance services and resources.
       yield* Effect.promise(() => runDisposers(ctx.directory))
+      clearDisposeSignal(ctx.directory)
+      // 4. Notify SSE clients that this instance is gone.
       yield* emitDisposed({ directory: ctx.directory, project: ctx.project.id })
     })
 

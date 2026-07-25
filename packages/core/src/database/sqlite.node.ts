@@ -155,7 +155,14 @@ const nativeLayer = (config: Config) =>
         enableForeignKeyConstraints: true,
         open: true,
       })
-      yield* Effect.addFinalizer(() => Effect.sync(() => native.close()))
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => {
+          try {
+            native.exec("PRAGMA wal_checkpoint(TRUNCATE)")
+          } catch (_) {}
+          native.close()
+        }),
+      )
       if (config.disableWAL !== true && config.readonly !== true) native.exec("PRAGMA journal_mode = WAL;")
       return native
     }),
