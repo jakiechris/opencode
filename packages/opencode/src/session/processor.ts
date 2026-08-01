@@ -119,6 +119,7 @@ export const layer = Layer.effect(
         v2AssistantMessageID: undefined,
       }
       const mirrorAssistant = flags.experimentalEventSystem && !input.assistantMessage.summary
+      const streamToolDelta = flags.experimentalToolDeltaStream && !input.assistantMessage.summary
       let aborted = false
 
       const parse = (e: unknown) =>
@@ -136,18 +137,23 @@ export const layer = Layer.effect(
       const ensureV2AssistantMessage = Effect.fn("SessionProcessor.ensureV2AssistantMessage")(function* () {
         if (ctx.v2AssistantMessageID) return ctx.v2AssistantMessageID
         ctx.v2AssistantMessageID = SessionMessage.ID.create()
-        yield* events.publish(SessionEvent.Step.Started, {
-          sessionID: ctx.sessionID,
-          assistantMessageID: ctx.v2AssistantMessageID,
-          agent: input.assistantMessage.agent,
-          model: {
-            id: ModelV2.ID.make(ctx.model.id),
-            providerID: ProviderV2.ID.make(ctx.model.providerID),
-            variant: ModelV2.VariantID.make(input.assistantMessage.variant ?? "default"),
-          },
-          snapshot: undefined,
-          timestamp: DateTime.makeUnsafe(Date.now()),
-        })
+        // The durable Step.Started anchor is only emitted with the full event
+        // system. Tool.Input.Delta live streaming does not need it and must not
+        // persist anything.
+        if (mirrorAssistant) {
+          yield* events.publish(SessionEvent.Step.Started, {
+            sessionID: ctx.sessionID,
+            assistantMessageID: ctx.v2AssistantMessageID,
+            agent: input.assistantMessage.agent,
+            model: {
+              id: ModelV2.ID.make(ctx.model.id),
+              providerID: ProviderV2.ID.make(ctx.model.providerID),
+              variant: ModelV2.VariantID.make(input.assistantMessage.variant ?? "default"),
+            },
+            snapshot: undefined,
+            timestamp: DateTime.makeUnsafe(Date.now()),
+          })
+        }
         return ctx.v2AssistantMessageID
       })
 
@@ -305,8 +311,11 @@ export const layer = Layer.effect(
           return { call: ctx.toolcalls[input.id], part }
         }
         // TODO(v2): Temporary dual-write while migrating session messages to v2 events.
-        const assistantMessageID = mirrorAssistant ? yield* ensureV2AssistantMessage() : undefined
-        if (assistantMessageID) {
+        // The v2 assistant message is created for both full mirroring and delta
+        // streaming, but the durable Tool.Input.Started anchor is only emitted
+        // with the full event system.
+        const assistantMessageID = mirrorAssistant || streamToolDelta ? yield* ensureV2AssistantMessage() : undefined
+        if (mirrorAssistant && assistantMessageID) {
           yield* events.publish(SessionEvent.Tool.Input.Started, {
             sessionID: ctx.sessionID,
             assistantMessageID,
@@ -426,7 +435,8 @@ export const layer = Layer.effect(
           case "tool-input-delta":
             {
               const toolCall = yield* ensureToolCall(value)
-              const assistantMessageID = mirrorAssistant ? yield* requireV2AssistantMessage(toolCall.call) : undefined
+              const assistantMessageID =
+                mirrorAssistant || streamToolDelta ? yield* requireV2AssistantMessage(toolCall.call) : undefined
               if (assistantMessageID) {
                 yield* events.publish(SessionEvent.Tool.Input.Delta, {
                   sessionID: ctx.sessionID,
