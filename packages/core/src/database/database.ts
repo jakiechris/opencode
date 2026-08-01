@@ -24,13 +24,14 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const db = yield* makeDatabase
 
-    yield* db.run("PRAGMA journal_mode = WAL")
+    // NFS 安全:关闭 WAL,改用 DELETE 回滚日志模式。
+    // WAL 的 -shm 走 mmap、跨进程锁走 fcntl,二者在 NFS 上均不可靠,是写坏主因。
+    // DELETE 模式不产生 -wal/-shm,绕开这两个病根。
+    yield* db.run("PRAGMA journal_mode = DELETE")
     yield* db.run("PRAGMA synchronous = FULL")
     yield* db.run("PRAGMA busy_timeout = 30000")
     yield* db.run("PRAGMA cache_size = -64000")
     yield* db.run("PRAGMA foreign_keys = ON")
-    yield* db.run("PRAGMA wal_autocheckpoint = 10000")
-    yield* db.run("PRAGMA wal_checkpoint(TRUNCATE)")
     yield* DatabaseMigration.apply(db)
 
     return { db }

@@ -65,8 +65,9 @@ export const make = (
       })
       yield* Effect.addFinalizer(() => Effect.sync(() => db.close()))
 
-      if (options.disableWAL !== true && options.readonly !== true) {
-        db.exec("PRAGMA journal_mode = WAL;")
+      // NFS 安全:默认 DELETE 回滚日志(不产生 -wal/-shm)。仅当显式要求时才用 WAL。只读连接不设 journal_mode。
+      if (options.readonly !== true) {
+        db.exec(options.disableWAL === false ? "PRAGMA journal_mode = WAL;" : "PRAGMA journal_mode = DELETE;")
       }
 
       const run = (sql: string, params: ReadonlyArray<unknown> = []) =>

@@ -168,7 +168,8 @@ const nativeLayer = (config: Config) =>
           native.close()
         }),
       )
-      if (config.disableWAL !== true) native.run("PRAGMA journal_mode = WAL;")
+      // NFS 安全:默认 DELETE 回滚日志(不产生 -wal/-shm)。仅当显式要求时才用 WAL。
+      native.run(config.disableWAL === false ? "PRAGMA journal_mode = WAL;" : "PRAGMA journal_mode = DELETE;")
       return native
     }),
   )
