@@ -18,6 +18,8 @@ import { MessageID, PartID, SessionID } from "@/session/schema"
 import { NamedError } from "@opencode-ai/core/util/error"
 import { awaitDisposing } from "@/effect/instance-dispose-signal"
 import { InstanceRef } from "@/effect/instance-ref"
+import { InstanceState } from "@/effect/instance-state"
+import { restoreSessionData } from "@/session/import"
 import { Cause, Effect, Option, Schema, Scope } from "effect"
 import * as Stream from "effect/Stream"
 import { HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
@@ -27,6 +29,7 @@ import {
   CommandPayload,
   DiffQuery,
   ForkPayload,
+  ImportPayload,
   InitPayload,
   ListQuery,
   MessagesQuery,
@@ -178,6 +181,20 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     const remove = Effect.fn("SessionHttpApi.remove")(function* (ctx: { params: { sessionID: SessionID } }) {
       yield* SessionError.mapStorageNotFound(session.remove(ctx.params.sessionID))
       return true
+    })
+
+    const importSession = Effect.fn("SessionHttpApi.importSession")(function* (ctx: {
+      payload: typeof ImportPayload.Type
+    }) {
+      const instance = yield* InstanceState.context
+      const id = yield* restoreSessionData({
+        info: ctx.payload.info,
+        messages: ctx.payload.messages,
+        projectID: instance.project.id,
+        directory: instance.directory,
+        worktree: instance.worktree,
+      })
+      return yield* SessionError.mapStorageNotFound(session.get(SessionID.make(id)))
     })
 
     const update = Effect.fn("SessionHttpApi.update")(function* (ctx: {
@@ -428,6 +445,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       .handle("message", message)
       .handleRaw("create", createRaw)
       .handle("remove", remove)
+      .handle("importSession", importSession)
       .handle("update", update)
       .handleRaw("fork", forkRaw)
       .handle("abort", abort)

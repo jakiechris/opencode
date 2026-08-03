@@ -73,6 +73,11 @@ export const RevertPayload = Schema.Struct(Struct.omit(SessionRevert.RevertInput
 export const PermissionResponsePayload = Schema.Struct({
   response: PermissionV1.Reply,
 })
+/** Payload for restoring a session from exported data (export/import format). */
+export const ImportPayload = Schema.Struct({
+  info: Session.Info,
+  messages: Schema.Array(SessionV1.WithParts),
+})
 
 export const SessionPaths = {
   list: root,
@@ -101,6 +106,7 @@ export const SessionPaths = {
   deleteMessage: `${root}/:sessionID/message/:messageID`,
   deletePart: `${root}/:sessionID/message/:messageID/part/:partID`,
   updatePart: `${root}/:sessionID/message/:messageID/part/:partID`,
+  importSession: `${root}/import`,
 } as const
 
 export const SessionApi = HttpApi.make("session")
@@ -439,6 +445,19 @@ export const SessionApi = HttpApi.make("session")
           OpenApi.annotations({
             identifier: "part.update",
             description: "Update a part in a message.",
+          }),
+        ),
+        HttpApiEndpoint.post("importSession", SessionPaths.importSession, {
+          query: WorkspaceRoutingQuery,
+          payload: ImportPayload,
+          success: described(Session.Info, "Successfully imported session"),
+          error: [HttpApiError.BadRequest, ApiNotFoundError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.import",
+            summary: "Import session",
+            description:
+              "Restore a session from exported data (session info plus messages with parts), inserting it into the current project.",
           }),
         ),
       )
