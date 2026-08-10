@@ -44,6 +44,11 @@ export const MessagesQuery = Schema.Struct({
   limit: Schema.optional(Schema.NumberFromString.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0))),
   before: Schema.optional(Schema.String),
 })
+export const ExportQuery = Schema.Struct({
+  ...WorkspaceRoutingQueryFields,
+  offset: Schema.optional(Schema.NumberFromString.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0))),
+  limit: Schema.optional(Schema.NumberFromString.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(1))),
+})
 export const StatusMap = Schema.Record(Schema.String, SessionStatus.Info)
 export const UpdatePayload = Schema.Struct({
   title: Schema.optional(Schema.String),
@@ -77,6 +82,14 @@ export const PermissionResponsePayload = Schema.Struct({
 export const ImportPayload = Schema.Struct({
   info: Session.Info,
   messages: Schema.Array(SessionV1.WithParts),
+  /** 0-based offset of the first message in `messages`. When present, import is incremental: the
+   *  offset must equal the session's current message count, else the request is rejected. */
+  offset: Schema.optional(Schema.Number),
+})
+/** Response for exporting a session (info plus messages), matching the CLI `opencode export` output. */
+export const ExportPayload = Schema.Struct({
+  info: Session.Info,
+  messages: Schema.Array(SessionV1.WithParts),
 })
 
 export const SessionPaths = {
@@ -107,6 +120,7 @@ export const SessionPaths = {
   deletePart: `${root}/:sessionID/message/:messageID/part/:partID`,
   updatePart: `${root}/:sessionID/message/:messageID/part/:partID`,
   importSession: `${root}/import`,
+  exportSession: `${root}/:sessionID/export`,
 } as const
 
 export const SessionApi = HttpApi.make("session")
@@ -458,6 +472,19 @@ export const SessionApi = HttpApi.make("session")
             summary: "Import session",
             description:
               "Restore a session from exported data (session info plus messages with parts), inserting it into the current project.",
+          }),
+        ),
+        HttpApiEndpoint.get("exportSession", SessionPaths.exportSession, {
+          params: { sessionID: SessionID },
+          query: ExportQuery,
+          success: described(ExportPayload, "Successfully exported session"),
+          error: [HttpApiError.BadRequest, ApiNotFoundError],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.export",
+            summary: "Export session",
+            description:
+              "Export a session as info plus messages with parts. With `offset`, returns a page of `limit` messages (default 1) starting at that offset; past the end, messages is empty.",
           }),
         ),
       )

@@ -19,7 +19,7 @@ import { NamedError } from "@opencode-ai/core/util/error"
 import { awaitDisposing } from "@/effect/instance-dispose-signal"
 import { InstanceRef } from "@/effect/instance-ref"
 import { InstanceState } from "@/effect/instance-state"
-import { restoreSessionData } from "@/session/import"
+import { importMessagesAt, restoreSessionData } from "@/session/import"
 import { Cause, Effect, Option, Schema, Scope } from "effect"
 import * as Stream from "effect/Stream"
 import { HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
@@ -28,6 +28,8 @@ import { InstanceHttpApi } from "../api"
 import {
   CommandPayload,
   DiffQuery,
+  ExportPayload,
+  ExportQuery,
   ForkPayload,
   ImportPayload,
   InitPayload,
@@ -41,6 +43,7 @@ import {
   UpdatePayload,
 } from "../groups/session"
 import { PermissionNotFoundError } from "../errors"
+import { WorkspaceRoutingQuery } from "../middleware/workspace-routing"
 import * as SessionError from "./session-errors"
 
 const tryParseJson = (text: string) =>
@@ -87,6 +90,25 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
 
     const get = Effect.fn("SessionHttpApi.get")(function* (ctx: { params: { sessionID: SessionID } }) {
       return yield* requireSession(ctx.params.sessionID)
+    })
+
+    const exportSession = Effect.fn("SessionHttpApi.exportSession")(function* (ctx: {
+      params: { sessionID: SessionID }
+      query: typeof ExportQuery.Type
+    }) {
+      const info = yield* requireSession(ctx.params.sessionID)
+      if (ctx.query.offset !== undefined || ctx.query.limit !== undefined) {
+        const messages = yield* MessageV2.range({
+          sessionID: ctx.params.sessionID,
+          limit: ctx.query.limit ?? 1,
+          offset: ctx.query.offset ?? 0,
+        })
+        return { info, messages } as typeof ExportPayload.Type
+      }
+      const messages = yield* SessionError.mapStorageNotFound(
+        session.messages({ sessionID: ctx.params.sessionID }),
+      )
+      return { info, messages } as typeof ExportPayload.Type
     })
 
     const children = Effect.fn("SessionHttpApi.children")(function* (ctx: { params: { sessionID: SessionID } }) {
@@ -185,15 +207,26 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
 
     const importSession = Effect.fn("SessionHttpApi.importSession")(function* (ctx: {
       payload: typeof ImportPayload.Type
+      query: typeof WorkspaceRoutingQuery.Type
     }) {
       const instance = yield* InstanceState.context
-      const id = yield* restoreSessionData({
+      const base = {
         info: ctx.payload.info,
         messages: ctx.payload.messages,
         projectID: instance.project.id,
-        directory: instance.directory,
+        // An explicit ?directory= on the request wins; otherwise trust the
+        // directory the payload carries, so an export → import round-trip
+        // lands the session back in the directory it was exported from.
+        directory: ctx.query.directory ?? ctx.payload.info.directory ?? instance.directory,
         worktree: instance.worktree,
-      })
+      }
+      // Incremental mode when the client supplies an offset: it must match the
+      // session's current message count, otherwise the request is rejected.
+      const id = ctx.payload.offset === undefined
+        ? yield* restoreSessionData(base)
+        : yield* importMessagesAt({ ...base, offset: ctx.payload.offset }).pipe(
+            Effect.mapError(() => new HttpApiError.BadRequest({})),
+          )
       return yield* SessionError.mapStorageNotFound(session.get(SessionID.make(id)))
     })
 
@@ -438,6 +471,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       .handle("list", list)
       .handle("status", status)
       .handle("get", get)
+      .handle("exportSession", exportSession)
       .handle("children", children)
       .handle("todo", todo)
       .handle("diff", diff)

@@ -22,6 +22,7 @@ import { Database } from "@opencode-ai/core/database/database"
 import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import { NotFoundError } from "@/storage/storage"
 import { and } from "drizzle-orm"
+import { asc } from "drizzle-orm"
 import { desc } from "drizzle-orm"
 import { eq } from "drizzle-orm"
 import { inArray } from "drizzle-orm"
@@ -466,6 +467,25 @@ export const page = Effect.fn("MessageV2.page")(function* (input: {
     more,
     cursor: more && tail ? cursor.encode({ id: tail.id, time: tail.time_created }) : undefined,
   }
+})
+
+/** Fetch messages by numeric offset/limit, in the same chronological order as `page`. */
+export const range = Effect.fn("MessageV2.range")(function* (input: {
+  sessionID: SessionID
+  limit: number
+  offset: number
+}) {
+  const { db } = yield* Database.Service
+  const rows = yield* db
+    .select()
+    .from(MessageTable)
+    .where(eq(MessageTable.session_id, input.sessionID))
+    .orderBy(asc(MessageTable.time_created), asc(MessageTable.id))
+    .limit(input.limit)
+    .offset(input.offset)
+    .all()
+    .pipe(Effect.orDie)
+  return yield* hydrate(db, rows)
 })
 
 export function stream(sessionID: SessionID) {
