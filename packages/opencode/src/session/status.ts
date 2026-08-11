@@ -27,13 +27,20 @@ export const layer = Layer.effect(
       Effect.fn("SessionStatus.state")(() => Effect.succeed(new Map<SessionID, Info>())),
     )
 
+    // Server-wide view of every non-idle session, across all instances. The
+    // per-directory `state` map only answers "what is busy in THIS directory";
+    // this side table backs `list()` so /session/status reports every session
+    // currently generating, no matter which directory it runs under. Session
+    // IDs are globally unique, so a flat map cannot collide.
+    const active = new Map<SessionID, Info>()
+
     const get = Effect.fn("SessionStatus.get")(function* (sessionID: SessionID) {
       const data = yield* InstanceState.get(state)
       return data.get(sessionID) ?? { type: "idle" as const }
     })
 
     const list = Effect.fn("SessionStatus.list")(function* () {
-      return new Map(yield* InstanceState.get(state))
+      return new Map(active)
     })
 
     const set = Effect.fn("SessionStatus.set")(function* (sessionID: SessionID, status: Info) {
@@ -42,9 +49,11 @@ export const layer = Layer.effect(
       if (status.type === "idle") {
         yield* events.publish(Event.Idle, { sessionID })
         data.delete(sessionID)
+        yield* Effect.sync(() => active.delete(sessionID))
         return
       }
       data.set(sessionID, status)
+      yield* Effect.sync(() => active.set(sessionID, status))
     })
 
     return Service.of({ get, list, set })
