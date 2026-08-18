@@ -19,6 +19,18 @@ import { dropSessionCaches, pickSessionCacheEvictions, SESSION_CACHE_LIMIT } fro
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 const SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
+
+// Message ids encode a wrapped timestamp (see identifier.ts), so after the id
+// clock wraps (every ~2.2 years) id order no longer matches chronology.
+// Compare by time.created first, id as a tiebreak — the same key the server's
+// latest() uses. Keeps message lists chronological regardless of id wrap.
+const messageKey = (message: { id: string; time: { created: number } }) =>
+  `${message.time.created}:${message.id}`
+const compareMessages = (a: { id: string; time: { created: number } }, b: { id: string; time: { created: number } }) => {
+  const left = messageKey(a)
+  const right = messageKey(b)
+  return left < right ? -1 : left > right ? 1 : 0
+}
 const initialMessagePageSize = 2
 const historyMessagePageSize = 200
 const sessionInfoLimit = 2_048
@@ -42,7 +54,7 @@ function mergeOptimisticPage(
   const part = new Map(page.part.map((item) => [item.id, item.part]))
   const confirmed: string[] = []
   for (const item of items) {
-    const result = Binary.search(session, item.message.id, (message) => message.id)
+    const result = Binary.search(session, messageKey(item.message), messageKey)
     if (!result.found) session.splice(result.index, 0, item.message)
     const current = part.get(item.message.id)
     if (result.found && hasParts(current, item.parts)) {
@@ -251,7 +263,7 @@ export function createServerSession(client: OpencodeClient) {
     const response = await retry(() => client.session.messages({ sessionID, limit, before }))
     const items = (response.data ?? []).filter((item) => !!item?.info?.id)
     return {
-      session: items.map((item) => cleanMessage(item.info)).sort((a, b) => cmp(a.id, b.id)),
+      session: items.map((item) => cleanMessage(item.info)).sort(compareMessages),
       part: items.map((item) => ({
         id: item.info.id,
         part: item.parts.filter((part) => !!part?.id).sort((a, b) => cmp(a.id, b.id)),
@@ -383,7 +395,7 @@ export function createServerSession(client: OpencodeClient) {
           setData("message", info.sessionID, [info])
           return
         }
-        const result = Binary.search(messages, info.id, (message) => message.id)
+        const result = Binary.search(messages, messageKey(info), messageKey)
         if (result.found) setData("message", info.sessionID, result.index, reconcile(info))
         if (!result.found)
           setData("message", info.sessionID, (value = []) => {
@@ -399,8 +411,13 @@ export function createServerSession(client: OpencodeClient) {
           produce((draft) => {
             const messages = draft.message[props.sessionID]
             if (messages) {
-              const result = Binary.search(messages, props.messageID, (message) => message.id)
-              if (result.found) messages.splice(result.index, 1)
+              // No time available for a removed message, so linear-filter by id.
+              for (let i = 0; i < messages.length; i++) {
+                if (messages[i].id === props.messageID) {
+                  messages.splice(i, 1)
+                  break
+                }
+              }
             }
             for (const part of draft.part[props.messageID] ?? []) delete draft.part_text_accum_delta[part.id]
             delete draft.part[props.messageID]

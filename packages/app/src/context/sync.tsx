@@ -6,6 +6,12 @@ import type { Message, Part } from "@opencode-ai/sdk/v2/client"
 
 const SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
 
+// Message ids encode a wrapped timestamp (see identifier.ts), so after the id
+// clock wraps (every ~2.2 years) id order no longer matches chronology.
+// Compare by time.created first, id as a tiebreak — same key as server's latest().
+const messageKey = (message: { id: string; time: { created: number } }) =>
+  `${message.time.created}:${message.id}`
+
 function sortParts(parts: Part[]) {
   return parts.filter((part) => !!part?.id).sort((a, b) => cmp(a.id, b.id))
 }
@@ -67,7 +73,7 @@ export function mergeOptimisticPage(page: MessagePage, items: OptimisticItem[]) 
   const confirmed: string[] = []
 
   for (const item of items) {
-    const result = Binary.search(session, item.message.id, (message) => message.id)
+    const result = Binary.search(session, messageKey(item.message), messageKey)
     const found = result.found
     if (!found) session.splice(result.index, 0, item.message)
 
@@ -92,7 +98,7 @@ export function mergeOptimisticPage(page: MessagePage, items: OptimisticItem[]) 
 export function applyOptimisticAdd(draft: OptimisticStore, input: OptimisticAddInput) {
   const messages = draft.message[input.sessionID]
   if (messages) {
-    const result = Binary.search(messages, input.message.id, (m) => m.id)
+    const result = Binary.search(messages, messageKey(input.message), messageKey)
     messages.splice(result.index, 0, input.message)
   } else {
     draft.message[input.sessionID] = [input.message]
@@ -103,8 +109,8 @@ export function applyOptimisticAdd(draft: OptimisticStore, input: OptimisticAddI
 export function applyOptimisticRemove(draft: OptimisticStore, input: OptimisticRemoveInput) {
   const messages = draft.message[input.sessionID]
   if (messages) {
-    const result = Binary.search(messages, input.messageID, (m) => m.id)
-    if (result.found) messages.splice(result.index, 1)
+    const index = messages.findIndex((message) => message.id === input.messageID)
+    if (index >= 0) messages.splice(index, 1)
   }
   delete draft.part[input.messageID]
 }

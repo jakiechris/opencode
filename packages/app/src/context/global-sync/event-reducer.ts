@@ -17,6 +17,13 @@ import { dropSessionCaches } from "./session-cache"
 import { diffs as list, message as clean } from "@/utils/diffs"
 
 const SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
+
+// Message ids encode a wrapped timestamp (see identifier.ts), so after the id
+// clock wraps (every ~2.2 years) id order no longer matches chronology.
+// Compare by time.created first, id as a tiebreak — same key as server's latest().
+const messageKey = (message: { id: string; time: { created: number } }) =>
+  `${message.time.created}:${message.id}`
+
 const SESSION_CONTENT_EVENTS = new Set([
   "session.diff",
   "todo.updated",
@@ -209,7 +216,7 @@ export function applyDirectoryEvent(input: {
         input.setStore("message", info.sessionID, [info])
         break
       }
-      const result = Binary.search(messages, info.id, (m) => m.id)
+      const result = Binary.search(messages, messageKey(info), messageKey)
       if (result.found) {
         input.setStore("message", info.sessionID, result.index, reconcile(info))
         break
@@ -229,8 +236,8 @@ export function applyDirectoryEvent(input: {
         produce((draft) => {
           const messages = draft.message[props.sessionID]
           if (messages) {
-            const result = Binary.search(messages, props.messageID, (m) => m.id)
-            if (result.found) messages.splice(result.index, 1)
+            const index = messages.findIndex((message) => message.id === props.messageID)
+            if (index >= 0) messages.splice(index, 1)
           }
           const parts = draft.part[props.messageID]
           if (parts) {
