@@ -81,10 +81,14 @@ function runInflight(map: Map<string, Promise<void>>, key: string, task: () => P
   return promise
 }
 
-function merge<T extends { id: string }>(a: readonly T[], b: readonly T[]) {
+function merge<T extends { id: string }>(
+  a: readonly T[],
+  b: readonly T[],
+  compare: (x: T, y: T) => number = (x, y) => cmp(x.id, y.id),
+) {
   const items = new Map(a.map((item) => [item.id, item] as const))
   for (const item of b) items.set(item.id, item)
-  return [...items.values()].sort((x, y) => cmp(x.id, y.id))
+  return [...items.values()].sort(compare)
 }
 
 export function createServerSession(client: OpencodeClient) {
@@ -282,7 +286,10 @@ export function createServerSession(client: OpencodeClient) {
         if ((generations.get(sessionID) ?? 0) !== generation) return
         const next = mergeOptimisticPage(page, [...(optimistic.get(sessionID)?.values() ?? [])])
         next.confirmed.forEach((messageID) => clearOptimistic(sessionID, messageID))
-        const messages = mode === "prepend" ? merge(data.message[sessionID] ?? [], next.session) : next.session
+        const messages =
+          mode === "prepend"
+            ? merge(data.message[sessionID] ?? [], next.session, compareMessages)
+            : next.session
         batch(() => {
           setData("message", sessionID, reconcile(messages, { key: "id" }))
           for (const item of next.part) {
@@ -579,7 +586,7 @@ export function createServerSession(client: OpencodeClient) {
         const items = optimistic.get(input.sessionID)
         if (items) items.set(input.message.id, input)
         if (!items) optimistic.set(input.sessionID, new Map([[input.message.id, input]]))
-        setData("message", input.sessionID, (messages = []) => merge(messages, [input.message]))
+        setData("message", input.sessionID, (messages = []) => merge(messages, [input.message], compareMessages))
         setData(
           "part",
           input.message.id,
