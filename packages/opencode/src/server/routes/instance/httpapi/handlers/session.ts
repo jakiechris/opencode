@@ -342,11 +342,38 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       return true
     })
 
+    // Read per-request parameters from the x-message-meta header and make them
+    // sticky on the session. Keys are merged into the existing session
+    // metadata (upsert semantics): a later request updates/extends the current
+    // set without deleting keys it doesn't mention. Skills' run commands
+    // receive the merged map as the MESSAGE_METADATA env var (see
+    // ShellTool.shellEnv).
+    const messageMeta = Effect.fn("SessionHttpApi.messageMeta")(function* () {
+      const request = yield* HttpServerRequest.HttpServerRequest
+      const raw = request.headers["x-message-meta"]
+      if (typeof raw !== "string") return undefined
+      const parsed = yield* tryParseJson(raw)
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+        return yield* Effect.fail(new HttpApiError.BadRequest({}))
+      }
+      return parsed as Record<string, unknown>
+    })
+
+    const applyMessageMeta = Effect.fn("SessionHttpApi.applyMessageMeta")(function* (sessionID: SessionID) {
+      const meta = yield* messageMeta()
+      if (meta === undefined) return
+      const current = yield* session
+        .get(sessionID)
+        .pipe(Effect.andThen((info) => info.metadata ?? {}), Effect.orElseSucceed(() => ({})))
+      yield* session.setMetadata({ sessionID, metadata: { ...current, ...meta } })
+    })
+
     const prompt = Effect.fn("SessionHttpApi.prompt")(function* (ctx: {
       params: { sessionID: SessionID }
       payload: typeof PromptPayload.Type
     }) {
       yield* requireSession(ctx.params.sessionID)
+      yield* applyMessageMeta(ctx.params.sessionID)
       const instanceCtx = yield* InstanceRef
       // Race the LLM run against a dispose signal so that if the instance is
       // torn down mid-request we return 503 instead of dropping the connection.
@@ -370,6 +397,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       payload: typeof PromptPayload.Type
     }) {
       yield* requireSession(ctx.params.sessionID)
+      yield* applyMessageMeta(ctx.params.sessionID)
       yield* promptSvc.prompt({ ...ctx.payload, sessionID: ctx.params.sessionID }).pipe(
         Effect.catchCause((cause) =>
           Effect.gen(function* () {

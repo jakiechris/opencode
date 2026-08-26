@@ -419,9 +419,15 @@ export const ShellTool = Tool.define(
         { cwd, sessionID: ctx.sessionID, callID: ctx.callID },
         { env: {} },
       )
+      // Per-session sticky params set via the x-message-meta request header
+      // (see SessionHttpApi.applyMessageMeta). Threaded through Tool.Context so
+      // this stays a pure in-memory read — querying the session here would
+      // block on the DB write lock held by the running session loop.
+      const metadata = ctx.sessionMetadata
       return {
         ...process.env,
         ...extra.env,
+        ...(metadata ? { MESSAGE_METADATA: JSON.stringify(metadata) } : {}),
       }
     })
 

@@ -41,6 +41,13 @@ export type Context<M extends Metadata = Metadata> = {
   callID?: string
   extra?: { [key: string]: unknown }
   messages: SessionV1.WithParts[]
+  /**
+   * Session-level metadata (set via the x-message-meta request header / PATCH
+   * /session). Threaded in here rather than re-read from the DB so subprocess
+   * spawn (e.g. ShellTool.shellEnv) can read it without blocking on the DB
+   * write lock held while the session loop is running.
+   */
+  sessionMetadata?: Record<string, any>
   metadata(input: { title?: string; metadata?: M }): Effect.Effect<void>
   ask(input: Omit<PermissionV1.Request, "id" | "sessionID" | "tool">): Effect.Effect<void>
 }

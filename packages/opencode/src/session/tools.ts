@@ -61,6 +61,7 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
     extra: { model: input.model, bypassAgentCheck: input.bypassAgentCheck, promptOps: input.promptOps },
     agent: input.agent.name,
     messages: input.messages,
+    sessionMetadata: input.session.metadata,
     metadata: (val) =>
       input.processor.updateToolCall(options.toolCallId, (match) => {
         if (!["running", "pending"].includes(match.state.status)) return match
