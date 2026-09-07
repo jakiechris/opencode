@@ -1432,7 +1432,15 @@ if (start === end) {
     const loop: (input: LoopInput) => Effect.Effect<SessionV1.WithParts> = Effect.fn("SessionPrompt.loop")(function* (
       input: LoopInput,
     ) {
-      return yield* state.ensureRunning(input.sessionID, lastAssistant(input.sessionID), runLoop(input.sessionID))
+      // Whatever ends this run — normal completion, abort cancelling the runner,
+      // or an instance dispose interrupting the fiber — the session must not
+      // stay stuck busy/retry in /session/status. idle is idempotent, so this
+      // only ever fires when ensureRunning actually forks THIS work (an already
+      // running session awaits the existing run and never executes it here).
+      const work = runLoop(input.sessionID).pipe(
+        Effect.ensuring(status.set(input.sessionID, { type: "idle" })),
+      )
+      return yield* state.ensureRunning(input.sessionID, lastAssistant(input.sessionID), work)
     })
 
     const shell: (input: ShellInput) => Effect.Effect<SessionV1.WithParts, Session.BusyError> = Effect.fn(

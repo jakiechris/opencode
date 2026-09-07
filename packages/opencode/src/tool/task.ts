@@ -239,7 +239,15 @@ export const TaskTool = Tool.define(
         )
       })
 
-      if (yield* background.extend({ id: nextSession.id, run: runTask() })) {
+      // When a job is resumed via extend, the appended runTask must carry the
+      // same onInterrupt as the start path (line ~271): if the job is cancelled
+      // (e.g. the parent session is aborted), it must cancel the child's runner
+      // so the child session is stopped AND marked idle, not just orphaned busy.
+      const extended = yield* background.extend({
+        id: nextSession.id,
+        run: runTask().pipe(Effect.onInterrupt(() => ops.cancel(nextSession.id))),
+      })
+      if (extended) {
         return {
           title: params.description,
           metadata: {
