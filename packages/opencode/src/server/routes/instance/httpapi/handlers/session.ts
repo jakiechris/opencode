@@ -362,9 +362,8 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     const applyMessageMeta = Effect.fn("SessionHttpApi.applyMessageMeta")(function* (sessionID: SessionID) {
       const meta = yield* messageMeta()
       if (meta === undefined) return
-      const current = yield* session
-        .get(sessionID)
-        .pipe(Effect.andThen((info) => info.metadata ?? {}), Effect.orElseSucceed(() => ({})))
+      const info = yield* session.get(sessionID)
+      const current = info.metadata ?? {}
       yield* session.setMetadata({ sessionID, metadata: { ...current, ...meta } })
     })
 
