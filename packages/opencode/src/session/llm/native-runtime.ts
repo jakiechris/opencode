@@ -40,6 +40,7 @@ type StreamInput = {
   readonly maxOutputTokens?: number
   readonly providerOptions?: Record<string, any>
   readonly headers: Record<string, string>
+  readonly query?: Record<string, string>
   readonly abort: AbortSignal
 }
 
@@ -99,6 +100,7 @@ export function stream(input: StreamInput): StreamResult {
     maxOutputTokens: input.maxOutputTokens,
     providerOptions: ProviderTransform.providerOptions(input.model, input.providerOptions ?? {}),
     headers: { ...providerHeaders(input.provider.options.headers), ...input.headers },
+    query: input.query,
   })
   const stream = Stream.scoped(
     Stream.unwrap(

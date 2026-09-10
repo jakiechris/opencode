@@ -14,6 +14,7 @@ import { GitLabWorkflowLanguageModel } from "gitlab-ai-provider"
 import { ProviderTransform } from "@/provider/transform"
 import { Config } from "@/config/config"
 import type { Agent } from "@/agent/agent"
+import { Session } from "./session"
 import type { MessageV2 } from "./message-v2"
 import { Plugin } from "@/plugin"
 import { Permission } from "@/permission"
@@ -111,6 +112,36 @@ const live: Layer.Layer<
         flags,
         isWorkflow,
       })
+
+      // Session metadata may carry LLM gateway tracing keys (set via the
+      // x-message-meta header / PATCH update; see session-tools/msgmeta.md):
+      //   reqId          -> appended to the request URL query (?reqId=...)
+      //   trace-source   -> sent as request header
+      //   trace-userId   -> sent as request header
+      // Headers are applied on both runtimes (ai-sdk + native). Per-request URL
+      // query only has an injection point on the native runtime; on the ai-sdk
+      // runtime the query is dropped (documented in session-tools/msgmeta.md).
+      const outboundHeaders: Record<string, string> = { ...prepared.headers }
+      let outboundQuery: Record<string, string> | undefined
+      const sessionSvc = yield* Effect.serviceOption(Session.Service)
+      if (Option.isSome(sessionSvc)) {
+        const sessionInfo = yield* Effect.option(sessionSvc.value.get(input.sessionID as SessionID))
+        if (Option.isSome(sessionInfo)) {
+          const metadata = sessionInfo.value.metadata
+          if (metadata) {
+            const pick = (key: string) => {
+              const value = metadata[key]
+              return typeof value === "string" && value.length > 0 ? value : undefined
+            }
+            const traceSource = pick("trace-source")
+            const traceUserId = pick("trace-userId")
+            const reqId = pick("reqId")
+            if (traceSource) outboundHeaders["trace-source"] = traceSource
+            if (traceUserId) outboundHeaders["trace-userId"] = traceUserId
+            if (reqId) outboundQuery = { reqId }
+          }
+        }
+      }
 
       // Wire up toolExecutor for DWS workflow models so that tool calls
       // from the workflow service are executed via opencode's tool system
@@ -237,7 +268,8 @@ const live: Layer.Layer<
           topK: prepared.params.topK,
           maxOutputTokens: prepared.params.maxOutputTokens,
           providerOptions: prepared.params.options,
-          headers: prepared.headers,
+          headers: outboundHeaders,
+          query: outboundQuery,
           abort: input.abort,
         })
         if (native.type === "supported") {
@@ -319,7 +351,7 @@ const live: Layer.Layer<
           toolChoice: input.toolChoice,
           maxOutputTokens: prepared.params.maxOutputTokens,
           abortSignal: input.abort,
-          headers: prepared.headers,
+          headers: outboundHeaders,
           maxRetries: input.retries ?? 0,
           messages: prepared.messages,
           model: wrapLanguageModel({

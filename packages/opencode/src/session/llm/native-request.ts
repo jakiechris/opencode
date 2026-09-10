@@ -32,6 +32,7 @@ export type RequestInput = {
   readonly maxOutputTokens?: number
   readonly providerOptions?: LLMRequest["providerOptions"]
   readonly headers?: Record<string, string>
+  readonly query?: Record<string, string>
 }
 
 const providerMetadata = (value: unknown): ProviderMetadata | undefined => {
@@ -190,6 +191,9 @@ export const request = (input: RequestInput) => {
     toolChoice: input.toolChoice,
     generation: generation(input),
     providerOptions: input.providerOptions,
+    // Per-request URL query params (e.g. session metadata reqId -> ?reqId=...).
+    // Applied by the route transport's applyQuery to the provider endpoint URL.
+    http: input.query ? { query: input.query } : undefined,
   })
 }
 

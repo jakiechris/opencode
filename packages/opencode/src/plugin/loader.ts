@@ -141,6 +141,14 @@ function esmToCjs(code: string): string {
     return `const { ${names.join(", ")} } = require("${source}")`
   })
 
+  // import.meta is illegal in the CJS/new Function() context this code is evaluated in, but the
+  // wrapper in load() already injects __filename/__dirname, so mirror the standard ESM fields.
+  if (code.includes("import.meta")) {
+    code =
+      `const __importMeta = { url: require("url").pathToFileURL(__filename).href, filename: __filename, dirname: __dirname };\n` +
+      code.replace(/\bimport\.meta\b/g, "__importMeta")
+  }
+
   // Append module.exports assignments for all named exports
   for (const name of namedExports) {
     code += `\nmodule.exports.${name} = ${name};`
