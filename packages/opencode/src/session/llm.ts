@@ -124,8 +124,19 @@ const live: Layer.Layer<
       const outboundHeaders: Record<string, string> = { ...prepared.headers }
       let outboundQuery: Record<string, string> | undefined
       const sessionSvc = yield* Effect.serviceOption(Session.Service)
+      // TEMP diagnostics for the x-message-meta forwarding; drop once confirmed.
+      yield* Effect.logInfo("[msgmeta] llm.run", {
+        "session.id": input.sessionID,
+        "provider.id": input.model.providerID,
+        "session.service": Option.isSome(sessionSvc) ? "found" : "missing",
+      })
       if (Option.isSome(sessionSvc)) {
         const sessionInfo = yield* Effect.option(sessionSvc.value.get(input.sessionID as SessionID))
+        yield* Effect.logInfo("[msgmeta] session.get", {
+          "session.id": input.sessionID,
+          result: Option.isSome(sessionInfo) ? "ok" : "not-found-or-died",
+          metadata: Option.isSome(sessionInfo) ? JSON.stringify(sessionInfo.value.metadata ?? null) : "n/a",
+        })
         if (Option.isSome(sessionInfo)) {
           const metadata = sessionInfo.value.metadata
           if (metadata) {
@@ -136,12 +147,33 @@ const live: Layer.Layer<
             const traceSource = pick("trace-source")
             const traceUserId = pick("trace-userId")
             const reqId = pick("reqId")
+            yield* Effect.logInfo("[msgmeta] picked", {
+              "session.id": input.sessionID,
+              reqId: reqId ?? "none",
+              "trace-source": traceSource ?? "none",
+              "trace-userId": traceUserId ?? "none",
+            })
             if (traceSource) outboundHeaders["trace-source"] = traceSource
             if (traceUserId) outboundHeaders["trace-userId"] = traceUserId
             if (reqId) outboundQuery = { reqId }
+          } else {
+            yield* Effect.logInfo("[msgmeta] session has no metadata", { "session.id": input.sessionID })
           }
         }
       }
+      yield* Effect.logInfo("[msgmeta] outbound", {
+        "session.id": input.sessionID,
+        headers: JSON.stringify(outboundHeaders),
+        query: JSON.stringify(outboundQuery ?? null),
+        "native.flag": String(flags.experimentalNativeLlm),
+      })
+
+      // The AI SDK has no per-request URL hook, so a query (reqId) travels to the provider
+      // fetch as an internal header and is rewritten into the request URL there. The header is
+      // stripped before the request goes out, so the provider never sees it (see Provider).
+      const aiSdkHeaders: Record<string, string> = outboundQuery
+        ? { ...outboundHeaders, "x-opencode-url-query": new URLSearchParams(outboundQuery).toString() }
+        : outboundHeaders
 
       // Wire up toolExecutor for DWS workflow models so that tool calls
       // from the workflow service are executed via opencode's tool system
@@ -351,7 +383,7 @@ const live: Layer.Layer<
           toolChoice: input.toolChoice,
           maxOutputTokens: prepared.params.maxOutputTokens,
           abortSignal: input.abort,
-          headers: outboundHeaders,
+          headers: aiSdkHeaders,
           maxRetries: input.retries ?? 0,
           messages: prepared.messages,
           model: wrapLanguageModel({

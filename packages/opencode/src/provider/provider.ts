@@ -91,6 +91,42 @@ function timeoutController(ms: number) {
   }
 }
 
+// Normalize fetch init headers into a plain record (used by the URL query rewrite and by the
+// outbound request diagnostics).
+function headerRecord(raw: unknown): Record<string, string> {
+  const headers: Record<string, string> = {}
+  if (raw && typeof (raw as any).forEach === "function")
+    (raw as any).forEach((value: string, key: string) => (headers[key] = String(value)))
+  else if (Array.isArray(raw)) for (const [key, value] of raw as any[]) headers[key] = String(value)
+  else if (raw) for (const [key, value] of Object.entries(raw as Record<string, unknown>)) headers[key] = String(value)
+  return headers
+}
+
+// The AI SDK's streamText has no per-request URL hook, so LLM.run smuggles per-request query
+// params (session metadata reqId -> ?reqId=...) as this header. Move them into the request URL
+// at the fetch exit and drop the header, so the provider never sees it.
+const URL_QUERY_HEADER = "x-opencode-url-query"
+
+function takeUrlQuery(input: any, init?: BunFetchRequestInit) {
+  const record = headerRecord(init?.headers ?? input?.headers)
+  const key = Object.keys(record).find((name) => name.toLowerCase() === URL_QUERY_HEADER)
+  if (!key) return undefined
+  return {
+    query: record[key],
+    headers: Object.fromEntries(Object.entries(record).filter(([name]) => name !== key)),
+  }
+}
+
+function appendUrlQuery(input: any, query: string) {
+  const url = inputUrl(input)
+  const next = `${url}${url.includes("?") ? "&" : "?"}${query}`
+  return input instanceof Request ? new Request(next, input) : next
+}
+
+function inputUrl(input: any): string {
+  return typeof input === "string" ? input : input instanceof URL ? input.href : (input?.url ?? String(input))
+}
+
 function googleVertexAnthropicBaseURL(project: string | undefined, location: string | undefined) {
   if (!project) return
   if (location !== "eu" && location !== "us") return
@@ -1636,7 +1672,20 @@ export const layer = Layer.effect(
 
     const list = Effect.fn("Provider.list")(() => InstanceState.use(state, (s) => s.providers))
 
-    async function resolveSDK(model: Model, s: State, envs: Record<string, string | undefined>) {
+    // TEMP diagnostics: log the exact fetch call (method + URL + query string + headers) and the
+    // response at INFO. `authorization` is printed verbatim on purpose (gateway debugging); other
+    // credential-bearing headers stay redacted. A non-2xx response logs status + headers + body.
+    type ModelRequestLog = {
+      request: (request: { method: string; url: string; headers: Record<string, string> }) => void
+      response: (response: { url: string; response: Response }) => void
+    }
+
+    async function resolveSDK(
+      model: Model,
+      s: State,
+      envs: Record<string, string | undefined>,
+      log: ModelRequestLog,
+    ) {
       try {
         const provider = s.providers[model.providerID]
         const options = { ...provider.options }
@@ -1708,6 +1757,12 @@ export const layer = Layer.effect(
 
         options["fetch"] = async (input: any, init?: BunFetchRequestInit) => {
           const fetchFn = customFetch ?? fetch
+          // Move the smuggled per-request query params into the URL and drop the carrier header.
+          const urlQuery = takeUrlQuery(input, init)
+          if (urlQuery?.query) {
+            input = appendUrlQuery(input, urlQuery.query)
+            init = { ...(init ?? {}), headers: urlQuery.headers }
+          }
           const opts = init ?? {}
           const chunkAbortCtl = typeof chunkTimeout === "number" && chunkTimeout > 0 ? new AbortController() : undefined
           const headerTimeoutMs = headerTimeout === false ? undefined : headerTimeout
@@ -1723,11 +1778,19 @@ export const layer = Layer.effect(
           const combined = signals.length === 0 ? null : signals.length === 1 ? signals[0] : AbortSignal.any(signals)
           if (combined) opts.signal = combined
 
+          // Logged from the same values spread into the fetch call below (`...opts`), and
+          // confirmed by the response line, so this is the request that actually went out.
+          log.request({
+            method: opts.method ?? "POST",
+            url: inputUrl(input),
+            headers: headerRecord(opts.headers ?? (input as any)?.headers),
+          })
           const res = await fetchFn(input, {
             ...opts,
             // @ts-ignore see here: https://github.com/oven-sh/bun/issues/16682
             timeout: false,
           }).finally(() => headerTimeoutCtl?.clear())
+          log.response({ url: inputUrl(input), response: res })
 
           if (!chunkAbortCtl) return res
           return wrapSSE(res, chunkTimeout, chunkAbortCtl)
@@ -1805,9 +1868,48 @@ export const layer = Layer.effect(
       if (s.models.has(key)) return s.models.get(key)!
 
       const provider = s.providers[model.providerID]
+      // TEMP diagnostics: bridge so the SDK fetch wrapper logs through the app logger at INFO.
+      const diagBridge = yield* EffectBridge.make()
+      const log: ModelRequestLog = {
+        request: (request) => {
+          const headers = Object.fromEntries(
+            Object.entries(request.headers).map(([key, value]) =>
+              /api[-_]?key|cookie|token|secret/i.test(key) ? [key, `<redacted len=${value.length}>`] : [key, value],
+            ),
+          )
+          const index = request.url.indexOf("?")
+          const query = index === -1 ? "none" : request.url.slice(index + 1)
+          diagBridge.fork(
+            Effect.logInfo(`[llmrequest] ${request.method} ${request.url}`, {
+              query,
+              headers: JSON.stringify(headers),
+            }),
+          )
+        },
+        response: (response) => {
+          const res = response.response
+          if (res.ok) {
+            diagBridge.fork(Effect.logInfo(`[llmrequest] <- ${res.status} ${response.url}`))
+            return
+          }
+          diagBridge.fork(
+            Effect.logInfo(`[llmrequest] <- ${res.status} ${res.statusText} ${response.url}`, {
+              headers: JSON.stringify(headerRecord(res.headers)),
+            }),
+          )
+          // Read the error body from a clone so the SDK still gets the original stream, and log it
+          // whole (gateways usually put the real reason here). Failure to read is not fatal.
+          diagBridge.fork(
+            Effect.tryPromise(() => res.clone().text()).pipe(
+              Effect.catch(() => Effect.succeed("<body read failed>")),
+              Effect.flatMap((body) => Effect.logInfo(`[llmrequest] <- body len=${body.length}`, { body })),
+            ),
+          )
+        },
+      }
       return yield* EffectPromise.refineRejection(
         async () => {
-          const sdk = await resolveSDK(model, s, envs)
+          const sdk = await resolveSDK(model, s, envs, log)
           const language = s.modelLoaders[model.providerID]
             ? await s.modelLoaders[model.providerID](
                 sdk,

@@ -351,6 +351,8 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     const messageMeta = Effect.fn("SessionHttpApi.messageMeta")(function* () {
       const request = yield* HttpServerRequest.HttpServerRequest
       const raw = request.headers["x-message-meta"]
+      // TEMP diagnostics for the x-message-meta forwarding; drop once confirmed.
+      yield* Effect.logInfo("[msgmeta] inbound header", { raw: typeof raw === "string" ? raw : "absent" })
       if (typeof raw !== "string") return undefined
       const parsed = yield* tryParseJson(raw)
       if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
@@ -364,7 +366,15 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       if (meta === undefined) return
       const info = yield* session.get(sessionID)
       const current = info.metadata ?? {}
-      yield* session.setMetadata({ sessionID, metadata: { ...current, ...meta } })
+      const merged = { ...current, ...meta }
+      // TEMP diagnostics for the x-message-meta forwarding; drop once confirmed.
+      yield* Effect.logInfo("[msgmeta] write", { "session.id": sessionID, metadata: JSON.stringify(merged) })
+      yield* session.setMetadata({ sessionID, metadata: merged })
+      const after = yield* session.get(sessionID)
+      yield* Effect.logInfo("[msgmeta] readback", {
+        "session.id": sessionID,
+        metadata: JSON.stringify(after.metadata ?? null),
+      })
     })
 
     const prompt = Effect.fn("SessionHttpApi.prompt")(function* (ctx: {
